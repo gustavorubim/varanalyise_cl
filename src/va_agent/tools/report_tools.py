@@ -49,7 +49,7 @@ def write_finding(
     root_cause: str,
     evidence: list[str],
     affected_tables: list[str],
-    affected_dimensions: dict[str, str] | None = None,
+    affected_dimensions: dict[str, Any] | None = None,
     recommendations: list[str] | None = None,
     sql_queries_used: list[str] | None = None,
     confidence_evidence_breadth: float = 0.5,

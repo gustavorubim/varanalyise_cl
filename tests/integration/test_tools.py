@@ -40,6 +40,16 @@ class TestSQLTools:
         result = sql_tools.run_sql_template("nonexistent")
         assert result["error"] is not None
 
+    def test_run_sql_query_reports_true_cardinality(self, executor):
+        result = sql_tools.run_sql_query("SELECT * FROM raw_ledger_entries")
+        expected = executor.execute("SELECT COUNT(*) as cnt FROM raw_ledger_entries")
+
+        assert result["error"] is None
+        assert result["truncated"] is True
+        assert result["row_count"] == 20
+        assert result["total_available_exact"] is True
+        assert result["total_available"] == expected.rows[0]["cnt"]
+
     def test_get_table_schema(self):
         result = sql_tools.get_table_schema("mart_pnl_report")
         assert result["table_name"] == "mart_pnl_report"

@@ -46,17 +46,41 @@ def run_sql_query(sql: str) -> dict[str, Any]:
         sql: A valid SQL SELECT query string.
 
     Returns:
-        Dict with keys: columns, rows, row_count, truncated, error.
+        Dict with keys: columns, rows, row_count, total_available,
+        total_available_exact, truncated, error.
         If error is not None, the query failed.
     """
     exe = _get_executor()
     result = exe.execute(sql)
+    if result.error:
+        return {
+            "columns": result.columns,
+            "rows": result.rows,
+            "row_count": len(result.rows),
+            "total_available": len(result.rows),
+            "total_available_exact": True,
+            "truncated": result.truncated,
+            "error": result.error,
+        }
+
+    rows = result.rows[:20] if len(result.rows) > 20 else result.rows
+    total_available = result.row_count
+    total_available_exact = True
+
+    if result.truncated:
+        counted_rows, count_error = exe.get_total_row_count(result.sql)
+        if count_error is None and counted_rows is not None:
+            total_available = counted_rows
+        else:
+            total_available_exact = False
+
     return {
         "columns": result.columns,
-        "rows": result.rows[:20] if len(result.rows) > 20 else result.rows,
-        "row_count": result.row_count,
-        "truncated": result.truncated or result.row_count > 20,
-        "total_available": result.row_count,
+        "rows": rows,
+        "row_count": len(rows),
+        "truncated": result.truncated or len(result.rows) > 20,
+        "total_available": total_available,
+        "total_available_exact": total_available_exact,
         "error": result.error,
     }
 

@@ -57,3 +57,17 @@ class TestSQLExecutor:
     def test_invalid_table_returns_error(self, executor):
         result = executor.execute("SELECT * FROM nonexistent_table")
         assert result.error is not None
+
+    def test_query_timeout_enforced(self, test_db):
+        exe = SQLExecutor(test_db, query_timeout=0.01)
+        try:
+            result = exe.execute(
+                "SELECT COUNT(*) as cnt "
+                "FROM raw_ledger_entries a "
+                "CROSS JOIN raw_ledger_entries b "
+                "CROSS JOIN raw_ledger_entries c"
+            )
+            assert result.error is not None
+            assert "timeout" in result.error.lower()
+        finally:
+            exe.close()

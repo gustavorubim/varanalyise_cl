@@ -741,3 +741,5 @@ The seed is fully deterministic (numpy RNG seed=42). Re-seeding always produces 
 | Validation | Pydantic v2 + sqlparse |
 | Data generation | pandas + numpy |
 | Package manager | uv |
+
+  uv run va analyze --verbose

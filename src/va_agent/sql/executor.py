@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from va_agent.models import QueryResult
@@ -40,18 +41,71 @@ class SQLExecutor:
         self.query_timeout = query_timeout
         self.audit_log: list[AuditEntry] = []
         self._conn: sqlite3.Connection | None = None
+        self._execute_lock = threading.Lock()
 
     def _get_connection(self) -> sqlite3.Connection:
         """Get or create the read-only connection."""
         if self._conn is None:
-            self._conn = open_readonly(self.db_path)
+            self._conn = open_readonly(self.db_path, busy_timeout=self.query_timeout)
         return self._conn
 
-    def execute(self, sql: str) -> QueryResult:
+    def _execute_with_timeout(
+        self,
+        conn: sqlite3.Connection,
+        sql: str,
+        max_rows: int | None,
+    ) -> tuple[list[str], list[dict], bool]:
+        """Execute SQL with strict runtime timeout enforcement."""
+        timed_out = False
+        progress_handler_installed = False
+
+        if self.query_timeout > 0:
+            deadline = time.monotonic() + self.query_timeout
+
+            def _progress_handler() -> int:
+                nonlocal timed_out
+                if time.monotonic() > deadline:
+                    timed_out = True
+                    return 1  # Abort query
+                return 0
+
+            conn.set_progress_handler(_progress_handler, 1000)
+            progress_handler_installed = True
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute(sql)
+
+            columns = [desc[0] for desc in cursor.description] if cursor.description else []
+
+            if max_rows is None:
+                rows_raw = cursor.fetchall()
+                truncated = False
+            else:
+                rows_raw = cursor.fetchmany(max_rows + 1)
+                truncated = len(rows_raw) > max_rows
+                if truncated:
+                    rows_raw = rows_raw[:max_rows]
+
+            rows = [dict(zip(columns, row)) for row in rows_raw]
+            return columns, rows, truncated
+
+        except sqlite3.Error as e:
+            if timed_out:
+                raise sqlite3.OperationalError(
+                    f"Query exceeded timeout of {self.query_timeout}s"
+                ) from e
+            raise
+        finally:
+            if progress_handler_installed:
+                conn.set_progress_handler(None, 0)
+
+    def execute(self, sql: str, *, record_audit: bool = True) -> QueryResult:
         """Validate and execute a SQL query.
 
         Args:
             sql: The SQL query to execute.
+            record_audit: Whether to append this query to the audit log.
 
         Returns:
             QueryResult with columns, rows, and metadata.
@@ -63,25 +117,20 @@ class SQLExecutor:
         try:
             # Layer 4: sqlparse guard
             validated_sql = validate_query(sql)
-
-            conn = self._get_connection()
-            cursor = conn.cursor()
-            cursor.execute(validated_sql)
-
-            columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            rows_raw = cursor.fetchmany(self.max_rows + 1)
-
-            truncated = len(rows_raw) > self.max_rows
-            if truncated:
-                rows_raw = rows_raw[: self.max_rows]
-
-            rows = [dict(zip(columns, row)) for row in rows_raw]
+            with self._execute_lock:
+                conn = self._get_connection()
+                columns, rows, truncated = self._execute_with_timeout(
+                    conn=conn,
+                    sql=validated_sql,
+                    max_rows=self.max_rows,
+                )
 
             elapsed = (time.perf_counter() - start) * 1000
             audit.execution_time_ms = elapsed
             audit.row_count = len(rows)
             audit.truncated = truncated
-            self.audit_log.append(audit)
+            if record_audit:
+                self.audit_log.append(audit)
 
             return QueryResult(
                 sql=validated_sql,
@@ -96,15 +145,46 @@ class SQLExecutor:
             elapsed = (time.perf_counter() - start) * 1000
             audit.execution_time_ms = elapsed
             audit.error = str(e)
-            self.audit_log.append(audit)
+            if record_audit:
+                self.audit_log.append(audit)
             return QueryResult(sql=sql, execution_time_ms=elapsed, error=str(e))
 
         except sqlite3.Error as e:
             elapsed = (time.perf_counter() - start) * 1000
             audit.execution_time_ms = elapsed
             audit.error = str(e)
-            self.audit_log.append(audit)
+            if record_audit:
+                self.audit_log.append(audit)
             return QueryResult(sql=sql, execution_time_ms=elapsed, error=str(e))
+
+    def get_total_row_count(self, sql: str) -> tuple[int | None, str | None]:
+        """Return the exact total row count for a SELECT query.
+
+        Args:
+            sql: Query to count (must be SELECT/WITH).
+
+        Returns:
+            Tuple of (row_count, error). row_count is None if count failed.
+        """
+        try:
+            validated_sql = validate_query(sql)
+            count_sql = (
+                "SELECT COUNT(*) AS total_rows FROM "
+                f"({validated_sql.rstrip(';').strip()}) AS __va_count_subquery"
+            )
+            with self._execute_lock:
+                conn = self._get_connection()
+                _, rows, _ = self._execute_with_timeout(
+                    conn=conn,
+                    sql=count_sql,
+                    max_rows=1,
+                )
+
+            if not rows:
+                return 0, None
+            return int(rows[0]["total_rows"]), None
+        except (SQLGuardError, sqlite3.Error) as e:
+            return None, str(e)
 
     def get_table_names(self) -> list[str]:
         """Get all table names from the database."""

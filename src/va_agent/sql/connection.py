@@ -31,7 +31,7 @@ def _readonly_authorizer(action: int, arg1, arg2, db_name, trigger) -> int:  # n
     return _SQLITE_DENY
 
 
-def open_readonly(db_path: Path) -> sqlite3.Connection:
+def open_readonly(db_path: Path, busy_timeout: int = 30) -> sqlite3.Connection:
     """Open a read-only SQLite connection with 3 layers of protection.
 
     Args:
@@ -51,7 +51,12 @@ def open_readonly(db_path: Path) -> sqlite3.Connection:
     # check_same_thread=False is safe here: the connection is read-only
     # (enforced by 3 layers), and LangGraph may invoke tools from worker threads.
     uri = f"file:{db_path.resolve().as_posix()}?mode=ro"
-    conn = sqlite3.connect(uri, uri=True, timeout=30, check_same_thread=False)
+    conn = sqlite3.connect(
+        uri,
+        uri=True,
+        timeout=max(1, busy_timeout),
+        check_same_thread=False,
+    )
     conn.row_factory = sqlite3.Row
 
     # Layer 2: PRAGMA query_only (belt-and-suspenders)

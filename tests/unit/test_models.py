@@ -107,6 +107,39 @@ class TestFinding:
         assert f2.id == f.id
         assert f2.confidence.score == f.confidence.score
 
+    def test_finding_coerces_scalar_dimensions_and_lists(self):
+        f = Finding(
+            id="F-002",
+            title="Coercion Test",
+            category=FindingCategory.FX_ANOMALY,
+            direction=VarianceDirection.UNFAVORABLE,
+            variance_amount=1200,
+            variance_pct=12.0,
+            root_cause="FX move",
+            evidence="Single evidence string",
+            affected_tables="mart_pnl_report",
+            affected_dimensions="Finance",
+            recommendations="Review FX assumptions",
+            sql_queries_used="SELECT 1",
+            confidence=ConfidenceScore(
+                score=0.6,
+                level=ConfidenceLevel.MEDIUM,
+                factors=ConfidenceFactors(
+                    evidence_breadth=0.6,
+                    lineage_depth=0.6,
+                    variance_explanation=0.6,
+                    hypothesis_exclusion=0.6,
+                    data_quality=0.6,
+                    temporal_consistency=0.6,
+                ),
+            ),
+        )
+        assert f.affected_dimensions == {"scope": "Finance"}
+        assert f.evidence == ["Single evidence string"]
+        assert f.affected_tables == ["mart_pnl_report"]
+        assert f.recommendations == ["Review FX assumptions"]
+        assert f.sql_queries_used == ["SELECT 1"]
+
 
 class TestVarianceReport:
     def test_empty_report(self):
@@ -118,6 +151,49 @@ class TestVarianceReport:
         schema = VarianceReport.model_json_schema()
         assert "properties" in schema
         assert "findings" in schema["properties"]
+
+    def test_report_coerces_stringified_payloads(self):
+        finding_payload = {
+            "id": "F-001",
+            "title": "FX anomaly",
+            "category": "FX_ANOMALY",
+            "direction": "UNFAVORABLE",
+            "variance_amount": 1000,
+            "variance_pct": 10.0,
+            "root_cause": "Rate spike",
+            "evidence": ["EUR spiked"],
+            "affected_tables": ["fct_fx_rates"],
+            "affected_dimensions": "Finance",
+            "confidence": {
+                "score": 0.8,
+                "level": "HIGH",
+                "factors": {
+                    "evidence_breadth": 0.8,
+                    "lineage_depth": 0.8,
+                    "variance_explanation": 0.8,
+                    "hypothesis_exclusion": 0.8,
+                    "data_quality": 0.8,
+                    "temporal_consistency": 0.8,
+                },
+            },
+            "recommendations": [],
+            "sql_queries_used": ["SELECT 1"],
+        }
+
+        report = VarianceReport.model_validate(
+            {
+                "title": "Variance Analysis Report",
+                "executive_summary": "Summary",
+                "sections": "[{'title': 'Methodology', 'content': 'text', 'findings': ['F-001']}]",
+                "findings": str([finding_payload]),
+                "metadata": "{'model_name': 'google_genai:test', 'total_queries': 3}",
+            }
+        )
+
+        assert len(report.findings) == 1
+        assert report.findings[0].affected_dimensions == {"scope": "Finance"}
+        assert report.metadata.model_name == "google_genai:test"
+        assert report.sections[0].findings == ["F-001"]
 
 
 class TestQueryResult:

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 
 import typer
@@ -20,6 +23,40 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 console = Console()
+
+
+def _acquire_analysis_lock(lock_path: Path) -> None:
+    """Acquire an exclusive on-disk lock for analysis runs."""
+    payload = {
+        "pid": os.getpid(),
+        "started_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError as e:
+        details = ""
+        try:
+            details = lock_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
+
+        hint = f" Existing lock details: {details}" if details else ""
+        raise RuntimeError(
+            f"Another analysis is already running (lock: {lock_path}).{hint}"
+        ) from e
+
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(json.dumps(payload))
+
+
+def _release_analysis_lock(lock_path: Path) -> None:
+    """Release analysis run lock."""
+    try:
+        lock_path.unlink(missing_ok=True)
+    except OSError:
+        # Best-effort cleanup; stale lock details are still inspectable.
+        pass
 
 
 @app.command()
@@ -77,6 +114,7 @@ def analyze(
     settings.verbose = verbose
     if db_path:
         settings.db_path = db_path
+    settings.ensure_dirs()
 
     if not settings.db_path.exists():
         console.print(
@@ -84,11 +122,21 @@ def analyze(
         )
         raise typer.Exit(code=1)
 
+    lock_path = settings.runs_dir / ".analysis.lock"
+    try:
+        _acquire_analysis_lock(lock_path)
+    except RuntimeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(code=1) from e
+
     console.print(f"[bold]Starting analysis...[/bold] (model={settings.model_name})")
 
     from va_agent.graph.build import build_and_run_agent
 
-    report = build_and_run_agent(settings)
+    try:
+        report = build_and_run_agent(settings)
+    finally:
+        _release_analysis_lock(lock_path)
 
     console.print(f"\n[green]Analysis complete.[/green] {len(report.findings)} findings.")
     console.print(f"Report: {report.title}")
