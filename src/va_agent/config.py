@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     }
 
     # LLM (google_genai provider — requires GOOGLE_API_KEY env var)
-    model_name: str = "google_genai:gemini-3-flash-preview"
+    model_name: str = "gemini-3-flash-preview"
     temperature: float = 0.0
 
     # SQL safety

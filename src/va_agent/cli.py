@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
-# Load .env early so GOOGLE_API_KEY is available to langchain-google-genai
+# Load .env early so GOOGLE_API_KEY is available to google-genai
 load_dotenv()
 
 from va_agent.config import Settings
