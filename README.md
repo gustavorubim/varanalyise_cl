@@ -11,6 +11,8 @@ Powered by **Google Gemini** (GenAI API) and **deepagents** (LangGraph).
 > Every command below is shown for **PowerShell** and **Bash** (Git Bash / WSL).
 > Pick whichever shell you use — the pipeline is identical.
 
+### Option A — Using uv (recommended)
+
 **PowerShell:**
 
 ```powershell
@@ -33,11 +35,46 @@ uv run va report                       # 5. write report artifacts
 uv run va audit                        # 6. view executed SQL queries
 ```
 
+### Option B — Using classic venv + pip
+
+**PowerShell:**
+
+```powershell
+python -m venv .venv                   # 1. create virtual environment
+.venv\Scripts\Activate.ps1             # 2. activate it
+pip install -r requirements.txt        # 3. install dependencies
+pip install -e .                       # 4. install the project (editable)
+Copy-Item .env.example .env            # 5. copy env template, then edit .env
+va seed                                # 6. generate the warehouse database
+va analyze --verbose                   # 7. run the agent (needs GOOGLE_API_KEY)
+va report                              # 8. write report artifacts
+va audit                               # 9. view executed SQL queries
+```
+
+**Bash:**
+
+```bash
+python3 -m venv .venv                  # 1. create virtual environment
+source .venv/bin/activate              # 2. activate it (use .venv/Scripts/activate on Git Bash)
+pip install -r requirements.txt        # 3. install dependencies
+pip install -e .                       # 4. install the project (editable)
+cp .env.example .env                   # 5. copy env template, then edit .env
+va seed                                # 6. generate the warehouse database
+va analyze --verbose                   # 7. run the agent (needs GOOGLE_API_KEY)
+va report                              # 8. write report artifacts
+va audit                               # 9. view executed SQL queries
+```
+
 ---
 
 ## Full Setup Guide
 
-### Step 1 — Install uv
+> This guide offers two setup paths: **uv** (recommended, faster) and **classic venv + pip**.
+> Pick one and follow its steps — both produce the same result.
+
+### Step 1 — Install your package manager
+
+#### Option A — uv (recommended)
 
 uv is a fast Python package and project manager. If you don't have it yet:
 
@@ -62,6 +99,17 @@ uv --version
 
 > If `uv` is not on your PATH after installing, close and reopen your terminal.
 
+#### Option B — Classic venv + pip
+
+No extra tooling needed — just ensure you have **Python 3.11–3.13** installed:
+
+```
+python --version
+# Python 3.12.x
+```
+
+> On Linux / macOS you may need to use `python3` instead of `python`.
+
 ### Step 2 — Clone the repository
 
 Works the same in both shells:
@@ -72,6 +120,8 @@ cd varanalyise_cl
 ```
 
 ### Step 3 — Create the virtual environment and install dependencies
+
+#### Option A — uv
 
 Works the same in both shells:
 
@@ -94,7 +144,34 @@ Installed 72 packages in 1.2s
 
 > If uv picks Python 3.14 instead of 3.12, run `uv sync --python 3.12`.
 
+#### Option B — Classic venv + pip
+
+**PowerShell:**
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+pip install -e .
+```
+
+**Bash (Git Bash / WSL):**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate              # WSL / Linux / macOS
+# or: source .venv/Scripts/activate    # Git Bash on Windows
+pip install -r requirements.txt
+pip install -e .
+```
+
+> If you get a script execution error on PowerShell, run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` first.
+
+The `pip install -e .` step installs the project in editable mode and registers the `va` CLI command.
+
 ### Step 4 — Activate the virtual environment
+
+> If you used **Option B** above, the venv is already activated. Skip to Step 5.
 
 **PowerShell:**
 
@@ -114,7 +191,7 @@ source .venv/bin/activate        # WSL / Linux / macOS
 
 Once activated your prompt will show `(.venv)` or `(va-agent)`. The `va` command is now available directly.
 
-> **Alternative:** skip activation entirely and prefix every command with `uv run`. For example `uv run va seed` instead of `va seed`. Both work identically.
+> **Alternative (uv only):** skip activation entirely and prefix every command with `uv run`. For example `uv run va seed` instead of `va seed`. Both work identically.
 
 ### Step 5 — Set up your Google API key
 
@@ -275,6 +352,8 @@ varanalyise_cl\
 ├── SKILLS.md                   # 6 reusable analysis skills
 ├── SPEC.md                     # Full technical specification
 ├── pyproject.toml              # Project config + dependencies
+├── requirements.txt            # pip-compatible runtime dependencies
+├── requirements-dev.txt        # pip-compatible dev dependencies (includes runtime)
 └── .env.example                # Environment variable template
 ```
 
@@ -684,13 +763,28 @@ Environment variables (all optional except the API key):
 
 ## Development
 
+### Installing dev dependencies
+
+**uv:**
+
+```
+uv sync
+```
+
+**pip (with venv activated):**
+
+```
+pip install -r requirements-dev.txt
+pip install -e .
+```
+
 ### Running the test suite
 
-Works the same in both shells:
+Works the same in both shells. If the venv is activated, you can drop the `uv run` prefix.
 
 ```
 # All 119 tests
-uv run pytest tests/ -v
+uv run pytest tests/ -v              # or just: pytest tests/ -v
 
 # Unit tests only (83 tests — no DB or API needed)
 uv run pytest tests/unit/ -v
@@ -708,7 +802,7 @@ uv run pytest tests/ --cov=va_agent --cov-report=term-missing
 ### Re-seeding the database
 
 ```
-uv run va seed --force
+uv run va seed --force               # or just: va seed --force
 ```
 
 The seed is fully deterministic (numpy RNG seed=42). Re-seeding always produces the same data.
@@ -725,7 +819,7 @@ The seed is fully deterministic (numpy RNG seed=42). Re-seeding always produces 
 | `GOOGLE_API_KEY not set` | Make sure `.env` exists and contains `GOOGLE_API_KEY=...` |
 | `Database not found` | Run `uv run va seed` before `uv run va analyze` |
 | `uv sync` picks Python 3.14 | Run `uv sync --python 3.12` to pin the version |
-| Tests fail on import | Run `uv sync` to ensure all deps are installed |
+| Tests fail on import | Run `uv sync` (or `pip install -r requirements-dev.txt && pip install -e .`) to ensure all deps are installed |
 | Git Bash can't find `.venv/bin/activate` | Use `.venv/Scripts/activate` on Windows Git Bash |
 
 ---

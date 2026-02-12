@@ -135,8 +135,9 @@ _TOOL_DECLARATIONS = [
     types.FunctionDeclaration(
         name="get_table_lineage",
         description=(
-            "Get the full lineage for a table: upstream sources and downstream "
-            "consumers. Use this to understand data flow when tracing a variance "
+            "Get the full lineage for a table: upstream sources, downstream "
+            "consumers, and transformation logic (aggregations, joins, derived "
+            "columns). Use this to understand data flow when tracing a variance "
             "to its root cause."
         ),
         parameters=types.Schema(
@@ -154,8 +155,8 @@ _TOOL_DECLARATIONS = [
         name="get_all_tables",
         description=(
             "Get a summary of all tables in the warehouse with their lineage "
-            "relationships. Use this as your first orientation step to understand "
-            "the data model."
+            "relationships and transformation logic. Use this as your first "
+            "orientation step to understand the data model."
         ),
         parameters=types.Schema(
             type=types.Type.OBJECT,
@@ -365,8 +366,11 @@ def _run_agent_loop(
     settings: Settings,
     user_message: str,
     system_prompt: str,
-) -> None:
-    """Run the agentic function-calling loop using google-genai."""
+) -> list[dict]:
+    """Run the agentic function-calling loop using google-genai.
+
+    Returns a list of trace entries (one per LLM round-trip).
+    """
     client = genai.Client()
 
     config = types.GenerateContentConfig(
@@ -381,6 +385,19 @@ def _run_agent_loop(
 
     step = 0
     t0 = time.time()
+
+    # -- trace --
+    trace: list[dict] = [
+        {
+            "step": 0,
+            "timestamp": datetime.now().isoformat(),
+            "elapsed_s": 0.0,
+            "request": user_message,
+            "response_text": None,
+            "function_calls": None,
+            "tool_results": None,
+        }
+    ]
 
     while True:
         if settings.verbose:
@@ -408,6 +425,17 @@ def _run_agent_loop(
                         border_style="cyan",
                     )
                 )
+            # Record final text-only step
+            step += 1
+            trace.append({
+                "step": step,
+                "timestamp": datetime.now().isoformat(),
+                "elapsed_s": round(time.time() - t0, 2),
+                "request": None,
+                "response_text": response.text if response.text else None,
+                "function_calls": None,
+                "tool_results": None,
+            })
             break
 
         step += 1
@@ -417,10 +445,15 @@ def _run_agent_loop(
 
         # Execute each function call and collect responses
         function_response_parts: list[types.Part] = []
+        tool_results_for_trace: list[dict] = []
+        fc_list_for_trace: list[dict] = []
+
         for part in function_calls:
             fc = part.function_call
             name = fc.name
             args = _to_python(fc.args) if fc.args else {}
+
+            fc_list_for_trace.append({"name": name, "args": args})
 
             if settings.verbose:
                 args_short = {}
@@ -434,6 +467,8 @@ def _run_agent_loop(
 
             result = _dispatch_tool(name, args)
 
+            tool_results_for_trace.append({"name": name, "result": result})
+
             if settings.verbose:
                 preview = str(result)[:200]
                 if len(str(result)) > 200:
@@ -446,6 +481,18 @@ def _run_agent_loop(
                 types.Part.from_function_response(name=name, response=result)
             )
 
+        # Build trace entry for this step
+        response_text_parts = [p.text for p in parts if p.text]
+        trace.append({
+            "step": step,
+            "timestamp": datetime.now().isoformat(),
+            "elapsed_s": round(time.time() - t0, 2),
+            "request": f"[function responses from step {step - 1}]" if step > 1 else user_message,
+            "response_text": "\n".join(response_text_parts) if response_text_parts else None,
+            "function_calls": fc_list_for_trace,
+            "tool_results": tool_results_for_trace,
+        })
+
         # Append function responses back to contents
         contents.append(types.Content(role="user", parts=function_response_parts))
 
@@ -453,6 +500,8 @@ def _run_agent_loop(
         elapsed = time.time() - t0
         m, s = divmod(int(elapsed), 60)
         _console.print(f"\n[bold]Completed in {step} steps ({m}m {s}s).[/bold]")
+
+    return trace
 
 
 # ---------------------------------------------------------------------------
@@ -499,7 +548,7 @@ def build_and_run_agent(settings: Settings) -> VarianceReport:
         _ping_llm(settings.model_name)
         _console.print("[bold]Running agent...[/bold]\n")
 
-    _run_agent_loop(settings, user_message, combined_prompt)
+    trace_steps = _run_agent_loop(settings, user_message, combined_prompt)
 
     # Build report from accumulated tool state
     report = _extract_report(settings, executor, started_at, run_dir)
@@ -539,6 +588,19 @@ def build_and_run_agent(settings: Settings) -> VarianceReport:
         json.dumps(findings_data, indent=2, default=str), encoding="utf-8"
     )
 
+    # Save LLM trace
+    trace_data = {
+        "model": settings.model_name,
+        "temperature": settings.temperature,
+        "system_instruction": combined_prompt,
+        "user_message": user_message,
+        "steps": trace_steps,
+    }
+    trace_path = run_dir / "trace.json"
+    trace_path.write_text(
+        json.dumps(trace_data, indent=2, default=str), encoding="utf-8"
+    )
+
     # Update latest pointer
     latest_file = settings.runs_dir / "latest_run"
     latest_file.write_text(str(run_dir.resolve()), encoding="utf-8")
@@ -548,7 +610,7 @@ def build_and_run_agent(settings: Settings) -> VarianceReport:
     if settings.verbose:
         _console.print(f"\n[green]Artifacts saved to:[/green] {run_dir}")
         _console.print(
-            "  report.json, report.md, findings.json, executed_queries.sql, audit_log.json"
+            "  report.json, report.md, findings.json, executed_queries.sql, audit_log.json, trace.json"
         )
 
     return report

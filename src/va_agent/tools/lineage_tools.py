@@ -47,6 +47,7 @@ def get_table_lineage(table_name: str) -> dict[str, Any]:
         "full_downstream_chain": get_downstream_chain(table_name),
         "key_columns": meta.key_columns,
         "measure_columns": meta.measure_columns,
+        "transformations": meta.transformations,
     }
 
 
@@ -72,6 +73,7 @@ def get_all_tables() -> dict[str, Any]:
                 ],
                 "key_columns": meta.key_columns,
                 "measure_columns": meta.measure_columns,
+                "transformations": meta.transformations,
             }
         )
     return {"tables": tables, "total": len(tables)}
