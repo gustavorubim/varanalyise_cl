@@ -10,8 +10,13 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from google import genai
 from google.genai import types
+
+from va_agent.graph.client_manager import (
+    GenAIClientManager,
+    generate_content,
+    set_client_manager,
+)
 from rich.console import Console
 from rich.panel import Panel
 
@@ -338,9 +343,8 @@ def _dispatch_tool(name: str, args: dict) -> dict:
 
 def _ping_llm(model_name: str) -> None:
     """Quick smoke-test: send a tiny request to verify the API key and model work."""
-    client = genai.Client()
     try:
-        client.models.generate_content(
+        generate_content(
             model=model_name, contents="Reply with the single word OK."
         )
         _console.print(f"[green]LLM connectivity OK[/green] [dim]({model_name})[/dim]")
@@ -371,8 +375,6 @@ def _run_agent_loop(
 
     Returns a list of trace entries (one per LLM round-trip).
     """
-    client = genai.Client()
-
     config = types.GenerateContentConfig(
         system_instruction=system_prompt,
         tools=[types.Tool(function_declarations=_TOOL_DECLARATIONS)],
@@ -403,7 +405,7 @@ def _run_agent_loop(
         if settings.verbose:
             _console.print(f"  {_ts(t0)} [dim]Calling LLM...[/dim]")
 
-        response = client.models.generate_content(
+        response = generate_content(
             model=settings.model_name,
             contents=contents,
             config=config,
@@ -529,6 +531,14 @@ def build_and_run_agent(settings: Settings) -> VarianceReport:
         query_timeout=settings.query_timeout,
     )
     set_executor(executor)
+
+    client_mgr = GenAIClientManager(
+        refresh_interval_s=settings.llm_refresh_interval_s,
+        max_retries=settings.llm_max_retries,
+        base_delay_s=settings.llm_base_delay_s,
+        max_delay_s=settings.llm_max_delay_s,
+    )
+    set_client_manager(client_mgr)
 
     combined_prompt = _load_prompts()
 

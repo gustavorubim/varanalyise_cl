@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     # Agent
     verbose: bool = False
 
+    # Retry / client manager
+    llm_refresh_interval_s: float = 600.0   # key refresh interval (seconds)
+    llm_max_retries: int = 5                # max retries for transient errors
+    llm_base_delay_s: float = 1.0           # initial backoff delay
+    llm_max_delay_s: float = 60.0           # backoff cap
+
     def ensure_dirs(self) -> None:
         """Create required directories if they don't exist."""
         self.runs_dir.mkdir(parents=True, exist_ok=True)
