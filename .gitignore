@@ -19,7 +19,7 @@ env/
 .cache/
 
 # Runs (generated data)
-runs/
+
 !runs/.gitkeep
 
 # SQLite databases

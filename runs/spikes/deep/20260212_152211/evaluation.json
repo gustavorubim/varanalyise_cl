@@ -1,0 +1,89 @@
+{
+  "anomaly_catalog": {
+    "A-001": {
+      "category": "COGS_ANOMALY",
+      "all_tokens": [
+        "cc-300"
+      ],
+      "any_tokens": [
+        "2024-03",
+        "2024-04"
+      ],
+      "description": "COGS spike in CC-300 (2024-03/2024-04)"
+    },
+    "A-002": {
+      "category": "REVENUE_ANOMALY",
+      "all_tokens": [
+        "sales",
+        "2024-06"
+      ],
+      "description": "Sales revenue zeroed in 2024-06"
+    },
+    "A-003": {
+      "category": "FX_ANOMALY",
+      "all_tokens": [
+        "eur",
+        "2024-07"
+      ],
+      "description": "EUR FX rate anomaly in 2024-07"
+    },
+    "A-004": {
+      "category": "BUDGET_MISALIGNMENT",
+      "all_tokens": [
+        "finance"
+      ],
+      "any_tokens": [
+        "2024-07",
+        "2024-08",
+        "2024-09",
+        "q3"
+      ],
+      "description": "Finance budget misalignment in Q3 2024"
+    },
+    "A-005": {
+      "category": "CLASSIFICATION_ERROR",
+      "any_tokens": [
+        "misclass",
+        "classification",
+        "mapping",
+        "account_type"
+      ],
+      "description": "Revenue/OpEx classification mismatch"
+    }
+  },
+  "matches": {
+    "A-005": [
+      "F-001"
+    ]
+  },
+  "matched_anomalies": 1,
+  "unmatched_anomalies": [
+    "A-001",
+    "A-002",
+    "A-003",
+    "A-004"
+  ],
+  "matched_findings": [
+    "F-001"
+  ],
+  "unmatched_findings": [],
+  "metrics": {
+    "anomaly_recall": 0.2,
+    "precision_proxy": 1.0,
+    "evidence_sufficiency": 1.0,
+    "root_cause_depth": 1.0,
+    "findings_count": 1
+  },
+  "trace_metrics": {
+    "steps": 8,
+    "tool_calls": 8,
+    "tool_errors": 1
+  },
+  "run": {
+    "run_dir": "C:\\Users\\gusta\\master\\varanalyise_cl\\runs\\spikes\\deep\\20260212_152211",
+    "engine": "deep",
+    "model": "gemini-3-flash-preview",
+    "started_at": "2026-02-12 15:22:11.755611",
+    "completed_at": "2026-02-12 15:22:43.011714"
+  }
+}

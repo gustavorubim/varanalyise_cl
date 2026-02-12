@@ -1,0 +1,66 @@
+{
+  "title": "Variance Analysis Report (Deep Spike)",
+  "executive_summary": "Deep spike identified 1 finding(s):\n- COGS Misclassification in Marketing (July 2023) (HIGH)",
+  "sections": [
+    {
+      "title": "July 2023 Variance Analysis",
+      "content": "# Variance Analysis Report - July 2023\n\n## Executive Summary\nThe analysis of the July 2023 P&L identified a significant material anomaly in the Marketing department's Cost of Goods Sold (COGS). A total unfavorable variance of $175,631.01 was investigated and traced to a classification error in the source ledger.\n\n## Key Findings\n### 1. COGS Misclassification in Marketing (Finding ID: F-001)\n- **Root Cause**: Six journal entries (IDs 512-517) for Direct Materials and Direct Labor were incorrectly coded to the Marketing department.\n- **Impact**: This resulted in a 3324% variance relative to the monthly budget of $5,282.\n- **Evidence**: The anomaly was traced from the `mart_pnl_report` down to specific line items in `raw_ledger_entries`.\n\n## Recommendations\n- **Immediate Action**: Reclassify the identified entries to the correct production department.\n- **Process Improvement**: Implement a validation rule to prevent COGS accounts from being booked to non-production departments like Marketing without manual override.\n",
+      "findings": [
+        "F-001"
+      ]
+    }
+  ],
+  "findings": [
+    {
+      "id": "F-001",
+      "title": "COGS Misclassification in Marketing (July 2023)",
+      "category": "CLASSIFICATION_ERROR",
+      "direction": "UNFAVORABLE",
+      "variance_amount": 175631.01,
+      "variance_pct": 3324.92,
+      "root_cause": "Six journal entries (IDs 512-517) for Direct Materials and Direct Labor were incorrectly assigned to the Marketing department in July 2023. These accounts are typically associated with production departments, and their presence in Marketing created a massive 3324% variance against the $5.2k budget.",
+      "evidence": [
+        "mart_pnl_report shows a 3324% ($175k) unfavorable variance in Marketing COGS for July 2023.",
+        "Drill-down in int_actuals_usd confirms the variance is entirely within accounts 5000 (Direct Materials) and 5010 (Direct Labor).",
+        "raw_ledger_entries reveals 6 specific journal entries (IDs 512-517) totaling ~180k EUR charged to Marketing."
+      ],
+      "affected_tables": [
+        "raw_ledger_entries",
+        "mart_pnl_report"
+      ],
+      "affected_dimensions": {
+        "account_type": "COGS",
+        "period": "2023-07",
+        "department": "Marketing"
+      },
+      "confidence": {
+        "score": 0.875,
+        "level": "HIGH",
+        "factors": {
+          "evidence_breadth": 0.8,
+          "lineage_depth": 1.0,
+          "variance_explanation": 1.0,
+          "hypothesis_exclusion": 0.7,
+          "data_quality": 0.9,
+          "temporal_consistency": 0.6
+        }
+      },
+      "recommendations": [
+        "Reclassify journal entries 512-517 from Marketing to the appropriate production department (e.g., Operations).",
+        "Review cost center CC-200 mapping rules to ensure COGS are not defaulted to Marketing."
+      ],
+      "sql_queries_used": [
+        "SELECT account_code, cost_center, SUM(actual_usd) FROM int_actuals_usd WHERE department = 'Marketing' AND period = '2023-07' AND account_type = 'COGS' GROUP BY 1, 2",
+        "SELECT * FROM raw_ledger_entries WHERE department = 'Marketing' AND period = '2023-07' AND account_code IN ('5000', '5010')"
+      ]
+    }
+  ],
+  "metadata": {
+    "started_at": "2026-02-12T15:22:11.755611",
+    "completed_at": "2026-02-12T15:22:43.011714",
+    "model_name": "deep:gemini-3-flash-preview",
+    "total_queries": 5,
+    "total_tokens": 0,
+    "run_dir": "runs\\spikes\\deep\\20260212_152211"
+  }
+}

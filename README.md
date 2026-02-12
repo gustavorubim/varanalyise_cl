@@ -370,6 +370,25 @@ varanalyise_cl\
 
 All commands work identically in PowerShell and Bash. Prefix with `uv run` if the venv is not activated.
 
+## Standalone Deep Spike
+
+The Deep Agents spike is intentionally **not wired** into `va analyze`. Run it directly:
+
+```bash
+python -m va_agent.graph.deep_engine --repeats 3 --deterministic
+```
+
+Key outputs are written under `runs/spikes/deep/<timestamp>/`:
+- `report.json`
+- `report.md`
+- `findings.json`
+- `audit_log.json`
+- `trace.json`
+- `evaluation.json`
+- `comparison.md`
+
+Benchmark summaries are written under `runs/spikes/deep/benchmark_<timestamp>/`.
+
 ---
 
 ## Architecture
