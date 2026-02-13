@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import shutil
-from pathlib import Path
-
 from va_agent.graph.deep_engine import (
-    _find_latest_raw_run,
     compute_consistency,
     evaluate_findings,
 )
@@ -109,24 +105,3 @@ def test_compute_consistency_returns_stddev_metrics():
     result = compute_consistency(evaluations)
     assert result["recall_stddev"] > 0
     assert result["precision_stddev"] > 0
-
-
-def test_find_latest_raw_run_ignores_spike_runs():
-    runs_dir = Path("runs/.unit_test_latest_raw")
-    if runs_dir.exists():
-        shutil.rmtree(runs_dir)
-    runs_dir.mkdir(parents=True, exist_ok=True)
-
-    raw_run = runs_dir / "20260212_120000"
-    raw_run.mkdir()
-    (raw_run / "report.json").write_text("{}", encoding="utf-8")
-
-    spike_run = runs_dir / "spikes" / "deep" / "20260212_130000"
-    spike_run.mkdir(parents=True)
-    (spike_run / "report.json").write_text("{}", encoding="utf-8")
-
-    try:
-        result = _find_latest_raw_run(runs_dir)
-        assert result == raw_run
-    finally:
-        shutil.rmtree(runs_dir, ignore_errors=True)

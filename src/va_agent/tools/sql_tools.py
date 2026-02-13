@@ -11,7 +11,7 @@ from typing import Any
 from va_agent.sql.executor import SQLExecutor
 from va_agent.sql.templates import TEMPLATES
 
-# Module-level executor — set by graph/build.py before agent starts
+# Module-level executor — set by graph/deep_engine.py before agent starts
 _executor: SQLExecutor | None = None
 
 

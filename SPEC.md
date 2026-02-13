@@ -13,14 +13,14 @@ A local-first autonomous variance analysis agent that:
 
 ### Agent Framework
 - **deepagents v0.4.1** (LangChain AI's agent SDK built on LangGraph)
-- Returns a `CompiledStateGraph` that manages tool invocation, state, and structured output
-- `response_format=VarianceReport` for Pydantic-validated structured output
+- Runtime is centered on `src/va_agent/graph/deep_engine.py`
+- Supports both single-run analysis and repeated benchmark mode
 
 ### LLM Provider
 - **Google Gemini** via `langchain-google-genai` (`ChatGoogleGenerativeAI`)
-- Default model: `google_genai:gemini-3-flash-preview`
+- Default model: `gemini-3-flash-preview`
 - Requires `GOOGLE_API_KEY` environment variable
-- Resolved through LangChain's `init_chat_model()` with `google_genai:` provider prefix
+- Bound through `ChatGoogleGenerativeAI` in deep runtime creation
 
 ### SQL Safety (4-layer defense)
 1. **URI mode=ro**: SQLite connection opened in read-only mode
@@ -61,8 +61,7 @@ src/va_agent/
 │   ├── lineage_tools.py     # get_table_lineage, get_all_tables
 │   └── report_tools.py      # write_finding, write_report_section
 ├── graph/
-│   ├── build.py             # build_agent() → CompiledStateGraph
-│   └── state.py             # AnalysisState TypedDict
+│   └── deep_engine.py       # Deep Agents runtime + benchmark orchestration
 ├── analysis/
 │   ├── variance.py          # compute_variance, materiality_threshold
 │   ├── decomposition.py     # decompose_variance, Pareto drivers

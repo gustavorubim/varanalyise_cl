@@ -1,4 +1,4 @@
-"""Standalone Deep Agents spike runtime."""
+"""Deep Agents runtime and benchmark orchestration."""
 
 from __future__ import annotations
 
@@ -425,47 +425,6 @@ def compute_consistency(evaluations: list[dict[str, Any]]) -> dict[str, float]:
     }
 
 
-def _find_latest_raw_run(runs_dir: Path) -> Path | None:
-    latest_file = runs_dir / "latest_run"
-    if latest_file.exists():
-        pointer = Path(latest_file.read_text(encoding="utf-8").strip())
-        if pointer.exists() and "spikes" not in pointer.parts and (pointer / "report.json").exists():
-            return pointer
-
-    candidates = [
-        d
-        for d in runs_dir.iterdir()
-        if d.is_dir() and (d / "report.json").exists() and "spikes" not in d.parts
-    ]
-    if not candidates:
-        return None
-    return sorted(candidates, key=lambda p: p.name, reverse=True)[0]
-
-
-def _load_trace_payload(run_dir: Path) -> dict[str, Any] | None:
-    trace_path = run_dir / "trace.json"
-    if not trace_path.exists():
-        return None
-    return json.loads(trace_path.read_text(encoding="utf-8"))
-
-
-def _evaluate_existing_run(run_dir: Path) -> dict[str, Any]:
-    report_path = run_dir / "report.json"
-    report = VarianceReport.model_validate_json(report_path.read_text(encoding="utf-8"))
-    trace_payload = _load_trace_payload(run_dir) or {"steps": []}
-
-    evaluation = evaluate_findings(report.findings)
-    evaluation["trace_metrics"] = _trace_metrics(trace_payload)
-    evaluation["run"] = {
-        "run_dir": str(run_dir.resolve()),
-        "engine": trace_payload.get("engine", "raw"),
-        "model": report.metadata.model_name,
-        "started_at": str(report.metadata.started_at),
-        "completed_at": str(report.metadata.completed_at),
-    }
-    return evaluation
-
-
 def _deep_summary_from_evals(evaluations: list[dict[str, Any]]) -> dict[str, Any]:
     if not evaluations:
         return {
@@ -515,24 +474,15 @@ def _deep_summary_from_evals(evaluations: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
-def _build_comparison_markdown(
-    deep_summary: dict[str, Any], raw_evaluation: dict[str, Any] | None
-) -> str:
+def _build_comparison_markdown(deep_summary: dict[str, Any]) -> str:
     lines: list[str] = [
-        "# Deep Spike Comparison",
+        "# Deep Spike Benchmark Summary",
         "",
-        "This comparison is generated from measured run artifacts, not manual judgment.",
+        "This summary is generated from measured deep-run artifacts, not manual judgment.",
         "",
         "## Scope",
         "",
-        "- Deep path: standalone spike in `runs/spikes/deep/...`",
-        "- Raw path: most recent non-spike run in `runs/<timestamp>/` (if available)",
-        "",
-        "## Setup Delta",
-        "",
-        "- Deep requires additional dependencies (`deepagents`, `langchain-google-genai`).",
-        "- Raw uses the existing `google-genai` function-calling loop.",
-        "- Both paths use the same SQL guardrails and warehouse data.",
+        "- Deep path only: standalone spike runs in `runs/spikes/deep/...`",
         "",
     ]
 
@@ -575,34 +525,15 @@ def _build_comparison_markdown(
         lines.append("- None detected in benchmark runs.")
     lines.append("")
 
-    lines.extend(["## Raw Baseline", ""])
-    if raw_evaluation is None:
-        lines.append("- No raw baseline run found for direct comparison.")
-        lines.append("")
-        return "\n".join(lines)
-
-    raw_metrics = raw_evaluation.get("metrics", {})
-    raw_trace = raw_evaluation.get("trace_metrics", {})
     lines.extend(
         [
-            f"- Raw anomaly recall: {raw_metrics.get('anomaly_recall', 0.0):.2%}",
-            f"- Raw precision proxy: {raw_metrics.get('precision_proxy', 0.0):.2%}",
-            f"- Raw evidence sufficiency: {raw_metrics.get('evidence_sufficiency', 0.0):.2%}",
-            f"- Raw root-cause depth: {raw_metrics.get('root_cause_depth', 0.0):.2%}",
-            f"- Raw steps: {raw_trace.get('steps', 0)}",
-            f"- Raw tool calls: {raw_trace.get('tool_calls', 0)}",
-            f"- Raw tool errors: {raw_trace.get('tool_errors', 0)}",
-            "",
             "## Recommendation Inputs",
             "",
             (
-                "- Choose Deep if anomaly recall and consistency meet your threshold while "
-                "preserving debuggability."
+                "- Tune prompt/tool limits if anomaly recall is low or if tool error rate is high."
             ),
-            (
-                "- Keep Raw if Deep adds setup/trace complexity without better detection quality."
-            ),
-            "- Consider dual-path only if each path serves a distinct operating mode.",
+            "- Track recall and precision proxy across repeated runs before changing defaults.",
+            "- Investigate unmatched anomalies in `evaluation.json` and `trace.json`.",
             "",
         ]
     )
@@ -799,10 +730,8 @@ def _write_artifacts(
     eval_path = run_dir / "evaluation.json"
     eval_path.write_text(json.dumps(evaluation, indent=2, default=str), encoding="utf-8")
 
-    raw_run = _find_latest_raw_run(settings.runs_dir)
-    raw_eval = _evaluate_existing_run(raw_run) if raw_run else None
     deep_summary = _deep_summary_from_evals([evaluation])
-    comparison_md = _build_comparison_markdown(deep_summary=deep_summary, raw_evaluation=raw_eval)
+    comparison_md = _build_comparison_markdown(deep_summary=deep_summary)
     comparison_path = run_dir / "comparison.md"
     comparison_path.write_text(comparison_md, encoding="utf-8")
 
@@ -984,17 +913,10 @@ def run_deep_benchmark(
         ],
     }
 
-    raw_run = _find_latest_raw_run(settings.runs_dir)
-    raw_eval = _evaluate_existing_run(raw_run) if raw_run else None
-    summary["raw_baseline"] = raw_eval
-
     summary_path = benchmark_dir / "benchmark_summary.json"
     summary_path.write_text(json.dumps(summary, indent=2, default=str), encoding="utf-8")
 
-    comparison_md = _build_comparison_markdown(
-        deep_summary=summary["deep"],
-        raw_evaluation=raw_eval,
-    )
+    comparison_md = _build_comparison_markdown(deep_summary=summary["deep"])
     comparison_path = benchmark_dir / "comparison.md"
     comparison_path.write_text(comparison_md, encoding="utf-8")
     _vlog(settings, f"Benchmark summary written to {summary_path}")
@@ -1008,7 +930,7 @@ def run_deep_benchmark(
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run standalone Deep Agents spike benchmark.")
+    parser = argparse.ArgumentParser(description="Run Deep Agents analysis and benchmark modes.")
     parser.add_argument("--model", type=str, default=None, help="Model override.")
     parser.add_argument("--db-path", type=Path, default=None, help="Custom warehouse DB path.")
     parser.add_argument("--run-label", type=str, default=None, help="Optional run label suffix.")

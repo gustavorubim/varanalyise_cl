@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
-# Load .env early so GOOGLE_API_KEY is available to google-genai
+# Load .env early so GOOGLE_API_KEY is available to model clients
 load_dotenv()
 
 from va_agent.config import Settings
@@ -102,10 +102,13 @@ def analyze(
     deterministic: bool = typer.Option(
         True, "--deterministic/--no-deterministic", help="Use temperature=0"
     ),
+    repeats: int = typer.Option(
+        1, "--repeats", min=1, help="Deep runs to execute (1=single run, >1=benchmark)"
+    ),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     db_path: Path | None = typer.Option(None, "--db-path", help="Custom database path"),
 ) -> None:
-    """Run the variance analysis agent against the warehouse database."""
+    """Run the deep analysis path against the warehouse database."""
     settings = Settings()
     if model:
         settings.model_name = model
@@ -129,18 +132,23 @@ def analyze(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(code=1) from e
 
-    console.print(f"[bold]Starting analysis...[/bold] (model={settings.model_name})")
+    console.print(f"[bold]Starting deep analysis...[/bold] (model={settings.model_name})")
 
-    from va_agent.graph.build import build_and_run_agent
+    from va_agent.graph.deep_engine import run_deep_benchmark, run_deep_spike
 
     try:
-        report = build_and_run_agent(settings)
+        if repeats <= 1:
+            report = run_deep_spike(settings=settings)
+            console.print(f"\n[green]Analysis complete.[/green] {len(report.findings)} findings.")
+            console.print(f"Report: {report.title}")
+            console.print(f"Run dir: {report.metadata.run_dir}")
+        else:
+            result = run_deep_benchmark(settings=settings, repeats=repeats)
+            console.print(f"\n[green]Deep benchmark complete.[/green] repeats={repeats}")
+            console.print(f"Summary: {result['summary_path']}")
+            console.print(f"Comparison: {result['comparison_path']}")
     finally:
         _release_analysis_lock(lock_path)
-
-    console.print(f"\n[green]Analysis complete.[/green] {len(report.findings)} findings.")
-    console.print(f"Report: {report.title}")
-    console.print(f"Summary: {report.executive_summary[:200]}...")
 
 
 @app.command()

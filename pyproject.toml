@@ -10,7 +10,6 @@ readme = "README.md"
 requires-python = ">=3.11,<3.14"
 license = "MIT"
 dependencies = [
-    "google-genai>=1.0.0",
     "deepagents>=0.4.1",
     "langchain-google-genai>=2.0.0",
     "typer>=0.15.0",
@@ -18,9 +17,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
     "pandas>=2.0.0",
-    "openpyxl>=3.1.0",
     "sqlparse>=0.5.0",
-    "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
 ]
 

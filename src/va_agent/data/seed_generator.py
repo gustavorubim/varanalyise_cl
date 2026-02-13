@@ -12,25 +12,10 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-import httpx
 import numpy as np
 import pandas as pd
 
 from va_agent.config import Settings
-
-# ── Source URLs ───────────────────────────────────────────────────────────────
-
-FINANCIAL_SAMPLE_URL = (
-    "https://github.com/microsoft/powerbi-desktop-samples/raw/main/"
-    "DAX/Adventure%20Works%20DW%202020.xlsx"
-)
-# Fallback: a simpler Power BI financial sample
-FINANCIAL_SAMPLE_FALLBACK_URL = (
-    "https://go.microsoft.com/fwlink/?LinkID=521962"
-)
-
-# We'll generate synthetic data that mirrors the structure of common
-# financial datasets rather than depending on external URLs that may break.
 
 PERIODS = pd.period_range("2023-01", "2024-12", freq="M")
 DEPARTMENTS = ["Sales", "Marketing", "Engineering", "Finance", "Operations"]
@@ -358,7 +343,7 @@ def _inject_anomalies(
     return ledger, actuals, budget, fx_rates, manifest
 
 
-# ── Main Pipeline ─────────────────────────────────────────────────────────────
+# ── Seeding Pipeline ──────────────────────────────────────────────────────────
 
 
 def seed_database(settings: Settings, force: bool = False) -> Path:

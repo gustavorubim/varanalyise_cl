@@ -28,18 +28,32 @@ class ReportWriter:
         if run_dir:
             return run_dir
 
-        latest_file = self.settings.runs_dir / "latest_run"
-        if latest_file.exists():
-            return Path(latest_file.read_text(encoding="utf-8").strip())
+        # Prefer deep-run pointer first (deep-only runtime), then legacy pointer.
+        pointer_files = [
+            self.settings.runs_dir / "spikes" / "deep" / "latest_run",
+            self.settings.runs_dir / "latest_run",
+        ]
+        for pointer_file in pointer_files:
+            if not pointer_file.exists():
+                continue
+            candidate = Path(pointer_file.read_text(encoding="utf-8").strip())
+            if candidate.exists() and (candidate / "report.json").exists():
+                return candidate
 
-        # Fall back to most recent subdirectory
-        subdirs = sorted(
-            [d for d in self.settings.runs_dir.iterdir() if d.is_dir()],
-            key=lambda d: d.name,
-            reverse=True,
-        )
-        if subdirs:
-            return subdirs[0]
+        # Fall back to latest run directory with report.json.
+        candidates: list[Path] = []
+        for d in self.settings.runs_dir.iterdir():
+            if d.is_dir() and (d / "report.json").exists():
+                candidates.append(d)
+
+        deep_root = self.settings.runs_dir / "spikes" / "deep"
+        if deep_root.exists():
+            for d in deep_root.iterdir():
+                if d.is_dir() and (d / "report.json").exists():
+                    candidates.append(d)
+
+        if candidates:
+            return max(candidates, key=lambda p: p.stat().st_mtime)
 
         raise FileNotFoundError("No analysis runs found. Run 'va analyze' first.")
 
