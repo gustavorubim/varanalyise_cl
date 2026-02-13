@@ -80,10 +80,10 @@
     "tool_errors": 1
   },
   "run": {
-    "run_dir": "C:\\Users\\gusta\\master\\varanalyise_cl\\runs\\spikes\\deep\\20260212_152211",
+    "run_dir": "/Users/gvrubim/Desktop/omscs/varanalyise_cl/runs/spikes/deep/20260212_205905",
     "engine": "deep",
     "model": "gemini-3-flash-preview",
-    "started_at": "2026-02-12 15:22:11.755611",
-    "completed_at": "2026-02-12 15:22:43.011714"
+    "started_at": "2026-02-12 20:59:05.481354",
+    "completed_at": "2026-02-12 20:59:39.804861"
   }
 }

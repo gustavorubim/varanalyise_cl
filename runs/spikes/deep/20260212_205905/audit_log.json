@@ -1,42 +1,42 @@
 [
   {
     "sql": "SELECT\n    department,\n    account_type,\n    period,\n    ROUND(SUM(actual_usd), 2) AS total_actual,\n    ROUND(SUM(budget_usd), 2) AS total_budget,\n    ROUND(SUM(variance_usd), 2) AS total_variance,\n    ROUND(AVG(variance_pct), 2) AS avg_variance_pct\nFROM mart_pnl_report\n\nGROUP BY department, account_type, period\nORDER BY ABS(SUM(variance_usd)) DESC",
-    "execution_time_ms": 8.811700012302026,
+    "execution_time_ms": 10.89624999985972,
     "row_count": 480,
     "truncated": false,
     "error": null,
-    "timestamp": 1770927736.8458488
+    "timestamp": 1770947955.765478
   },
   {
     "sql": "\nSELECT \n    account_code, \n    cost_center, \n    SUM(amount_usd) as actual_usd\nFROM int_actuals_usd\nWHERE department = 'Marketing' \n  AND period = '2023-07'\n  AND account_code IN (SELECT account_code FROM stg_account_mapping WHERE account_type = 'COGS')\nGROUP BY 1, 2\nORDER BY actual_usd DESC\n",
-    "execution_time_ms": 3.447399998549372,
+    "execution_time_ms": 4.2420419995323755,
     "row_count": 2,
     "truncated": false,
     "error": null,
-    "timestamp": 1770927740.537052
+    "timestamp": 1770947958.604741
   },
   {
     "sql": "\nSELECT \n    a.account_code, \n    a.account_name, \n    a.account_type,\n    r.department,\n    SUM(r.amount) as total_amount_local\nFROM raw_ledger_entries r\nJOIN stg_account_mapping a ON r.account_code = a.account_code\nWHERE r.account_code IN ('5000', '5010')\nGROUP BY 1, 2, 3, 4\nORDER BY 1, 4\n",
-    "execution_time_ms": 2.022700005909428,
+    "execution_time_ms": 3.982041000199388,
     "row_count": 0,
     "truncated": false,
     "error": "no such column: r.amount",
-    "timestamp": 1770927743.282641
+    "timestamp": 1770947961.077814
   },
   {
     "sql": "\nSELECT \n    account_code, \n    account_name, \n    account_type\nFROM stg_account_mapping\nWHERE account_code IN ('5000', '5010')\n",
-    "execution_time_ms": 2.31280000298284,
+    "execution_time_ms": 1.8276669998158468,
     "row_count": 2,
     "truncated": false,
     "error": null,
-    "timestamp": 1770927746.2423284
+    "timestamp": 1770947963.832164
   },
   {
     "sql": "\nSELECT \n    entry_id,\n    account_code,\n    cost_center,\n    department,\n    period,\n    amount_local,\n    currency\nFROM raw_ledger_entries\nWHERE department = 'Marketing'\n  AND period = '2023-07'\n  AND account_code IN ('5000', '5010')\nLIMIT 10\n",
-    "execution_time_ms": 1.600699994014576,
+    "execution_time_ms": 2.681125000890461,
     "row_count": 6,
     "truncated": false,
     "error": null,
-    "timestamp": 1770927748.9772673
+    "timestamp": 1770947966.080031
   }
 ]

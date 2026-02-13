@@ -56,11 +56,11 @@
     }
   ],
   "metadata": {
-    "started_at": "2026-02-12T15:22:11.755611",
-    "completed_at": "2026-02-12T15:22:43.011714",
+    "started_at": "2026-02-12T20:59:05.481354",
+    "completed_at": "2026-02-12T20:59:39.804861",
     "model_name": "deep:gemini-3-flash-preview",
     "total_queries": 5,
     "total_tokens": 0,
-    "run_dir": "runs\\spikes\\deep\\20260212_152211"
+    "run_dir": "runs/spikes/deep/20260212_205905"
   }
 }

@@ -1,4 +1,4 @@
--- Query #1 (9ms, 480 rows)
+-- Query #1 (11ms, 480 rows)
 SELECT
     department,
     account_type,
@@ -12,7 +12,7 @@ FROM mart_pnl_report
 GROUP BY department, account_type, period
 ORDER BY ABS(SUM(variance_usd)) DESC
 
--- Query #2 (3ms, 2 rows)
+-- Query #2 (4ms, 2 rows)
 
 SELECT 
     account_code, 
@@ -26,7 +26,7 @@ GROUP BY 1, 2
 ORDER BY actual_usd DESC
 
 
--- Query #3 (2ms, 0 rows)
+-- Query #3 (4ms, 0 rows)
 
 SELECT 
     a.account_code, 
@@ -51,7 +51,7 @@ FROM stg_account_mapping
 WHERE account_code IN ('5000', '5010')
 
 
--- Query #5 (2ms, 6 rows)
+-- Query #5 (3ms, 6 rows)
 
 SELECT 
     entry_id,

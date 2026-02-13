@@ -1,17 +1,10 @@
-# Deep Spike Comparison
+# Deep Spike Benchmark Summary
 
-This comparison is generated from measured run artifacts, not manual judgment.
+This summary is generated from measured deep-run artifacts, not manual judgment.
 
 ## Scope
 
-- Deep path: standalone spike in `runs/spikes/deep/...`
-- Raw path: most recent non-spike run in `runs/<timestamp>/` (if available)
-
-## Setup Delta
-
-- Deep requires additional dependencies (`deepagents`, `langchain-google-genai`).
-- Raw uses the existing `google-genai` function-calling loop.
-- Both paths use the same SQL guardrails and warehouse data.
+- Deep path only: standalone spike runs in `runs/spikes/deep/...`
 
 ## Detection Quality
 
@@ -39,6 +32,8 @@ This comparison is generated from measured run artifacts, not manual judgment.
 - A-003: EUR FX rate anomaly in 2024-07
 - A-004: Finance budget misalignment in Q3 2024
 
-## Raw Baseline
+## Recommendation Inputs
 
-- No raw baseline run found for direct comparison.
+- Tune prompt/tool limits if anomaly recall is low or if tool error rate is high.
+- Track recall and precision proxy across repeated runs before changing defaults.
+- Investigate unmatched anomalies in `evaluation.json` and `trace.json`.

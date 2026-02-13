@@ -8,10 +8,9 @@ The project detects report-level anomalies, traces them upstream across a lineag
 
 The repository is now centered on a single runtime approach:
 
-1. Deep-agent execution path:
-- Implemented in `src/va_agent/graph/deep_engine.py`
+- Deep-agent execution path implemented in `src/va_agent/graph/deep_engine.py`
 - Uses `deepagents` + `langchain-google-genai`
-- Powers both `va analyze` and direct module execution
+- Runtime entry point is `scripts/run_deep_agent.py`
 
 ## Quick Start (Recommended: uv)
 
@@ -23,13 +22,11 @@ Prerequisites:
 Commands:
 
 ```bash
-uv sync --python 3.12
+uv sync --python 3.12 --no-editable
 cp .env.example .env
 # edit .env and set GOOGLE_API_KEY=...
-uv run va seed
-uv run va analyze --verbose
-uv run va report
-uv run va audit
+uv run python scripts/run_deep_agent.py --seed --force-seed --seed-only
+uv run python scripts/run_deep_agent.py --deterministic --verbose
 ```
 
 ## Alternative Setup (venv + pip)
@@ -38,11 +35,10 @@ uv run va audit
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip install -e .
 cp .env.example .env
 # edit .env
-va seed
-va analyze --verbose
+python scripts/run_deep_agent.py --seed --force-seed --seed-only
+python scripts/run_deep_agent.py --deterministic --verbose
 ```
 
 ## Configuration
@@ -62,24 +58,29 @@ Important model-name note:
 - Use bare Gemini model ids like `gemini-3-flash-preview`.
 - If you see `404 NOT_FOUND` for model lookup, verify `VA_MODEL_NAME` first.
 
-## CLI Reference
+## Script Arguments
 
-| Command | Description |
+| Argument | Description |
 |---|---|
-| `va seed [--force] [--db-path PATH]` | Seed SQLite warehouse with deterministic synthetic data |
-| `va analyze [--model M] [--verbose] [--db-path PATH] [--repeats N]` | Run deep analysis (`N>1` runs deep benchmark) |
-| `va report [--run-dir DIR]` | Render artifacts from latest/specified run |
-| `va audit [--run-dir DIR]` | Print SQL audit log table |
+| `--seed` | Seed DB before running analysis |
+| `--force-seed` | Overwrite existing DB when seeding |
+| `--seed-only` | Seed DB and exit without running analysis |
+| `--repeats N` | Number of deep runs (`1` single run, `>1` benchmark) |
+| `--deterministic` | Force temperature `0.0` |
+| `--model MODEL_ID` | Override model id for this run |
+| `--db-path PATH` | Override warehouse DB path |
+| `--run-label LABEL` | Add suffix to run directory name |
+| `--verbose` | Enable verbose console logs |
 
-## Deep Analysis: How To Use
+## Script-First Execution (Recommended)
 
 Run:
 
 ```bash
-uv run va analyze --verbose
+uv run python scripts/run_deep_agent.py --deterministic --verbose
 ```
 
-Flow:
+Flow (through `scripts/run_deep_agent.py`):
 1. Loads prompts (`system.md`, `hypothesis.md`, `synthesis.md`)
 2. Wires SQL executor + tools
 3. Runs the Deep Agents runtime with tool-calling
@@ -103,13 +104,13 @@ Latest pointer:
 Single deep spike run:
 
 ```bash
-uv run python -m va_agent.graph.deep_engine --repeats 1 --deterministic --verbose
+uv run python scripts/run_deep_agent.py --repeats 1 --deterministic --verbose
 ```
 
 Benchmark mode (repeated runs):
 
 ```bash
-uv run python -m va_agent.graph.deep_engine --repeats 3 --deterministic --verbose
+uv run python scripts/run_deep_agent.py --repeats 3 --deterministic --verbose
 ```
 
 Deep spike run artifacts are written to:
@@ -573,6 +574,12 @@ Install deps:
 uv sync --python 3.12 --no-editable
 ```
 
+Run analysis without CLI install:
+
+```bash
+uv run python scripts/run_deep_agent.py --deterministic --verbose
+```
+
 Run tests:
 
 ```bash
@@ -586,17 +593,17 @@ uv run pytest tests/ --cov=va_agent --cov-report=term-missing
 Re-seed deterministic DB:
 
 ```bash
-uv run va seed --force
+uv run python scripts/run_deep_agent.py --seed --force-seed --seed-only
 ```
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| `ModuleNotFoundError: va_agent` | Rebuild env with non-editable install: `uv sync --python 3.12 --no-editable` |
+| `ModuleNotFoundError: va_agent` | Use script entrypoint and sync deps: `uv sync --python 3.12 --no-editable` then `uv run python scripts/run_deep_agent.py ...` |
 | `404 NOT_FOUND` model | Set valid `VA_MODEL_NAME` like `gemini-3-flash-preview` |
 | `GOOGLE_API_KEY not set` | Create `.env` and set key |
-| `Database not found` | Run `uv run va seed` or pass `--db-path` |
+| `Database not found` | Run `uv run python scripts/run_deep_agent.py --seed --force-seed --seed-only` or pass `--db-path` |
 | `uv sync` picks unsupported Python | Pin Python: `uv sync --python 3.12` |
 | PowerShell activation blocked | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 
@@ -607,6 +614,6 @@ uv run va seed --force
 | Agent orchestration | `deepagents` (LangGraph-based) |
 | LLM providers | Gemini via `langchain-google-genai` |
 | Database | SQLite |
-| CLI | Typer + Rich |
+| Execution entrypoint | `scripts/run_deep_agent.py` + `argparse` |
 | Validation | Pydantic v2 + sqlparse |
 | Data generation | pandas + numpy |
