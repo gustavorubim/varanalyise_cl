@@ -87,11 +87,11 @@ def run_sql_query(sql: str) -> dict[str, Any]:
 
 def run_sql_template(
     template_name: str,
-    **kwargs: str,
+    params: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Execute a pre-built SQL template for common analysis patterns.
 
-    Available templates:
+    Available templates and their parameters:
     - variance_summary(period?): P&L variance by department/account_type
     - account_detail(account_code, period?): Detailed actuals for an account
     - fx_rate_history(currency?): FX rate history with period-over-period changes
@@ -102,7 +102,8 @@ def run_sql_template(
 
     Args:
         template_name: Name of the template to execute.
-        **kwargs: Template parameters (e.g., period="2024-03").
+        params: Template parameters as a dict, e.g. {"period": "2024-03"}
+                or {"account_code": "4010", "period": "2024-06"}.
 
     Returns:
         Dict with query results or error.
@@ -113,7 +114,7 @@ def run_sql_template(
         }
 
     try:
-        sql = TEMPLATES[template_name](**kwargs)
+        sql = TEMPLATES[template_name](**(params or {}))
     except TypeError as e:
         return {"error": f"Invalid parameters for '{template_name}': {e}"}
 
@@ -127,8 +128,8 @@ def get_table_schema(table_name: str) -> dict[str, Any]:
 
     Available tables:
     - raw_ledger_entries: Raw journal entries (entry_id, period, account_code, account_type, department, cost_center, currency, segment, country, product, amount_local, description, posted_date)
-    - stg_account_mapping: Account code → type/name mapping (account_code, account_type, account_name)
-    - stg_cost_center_mapping: Cost center → department/region (cost_center, department, region)
+    - stg_account_mapping: Account code -> type/name mapping (account_code, account_type, account_name)
+    - stg_cost_center_mapping: Cost center -> department/region (cost_center, department, region)
     - fct_actuals_monthly: Monthly actuals aggregated (account_code, cost_center, currency, period, department, amount_local, entry_count)
     - fct_budget_monthly: Monthly budget by dept (department, account_type, period, budget_amount)
     - fct_fx_rates: Monthly FX rates (currency, period, rate_to_usd)
@@ -141,6 +142,18 @@ def get_table_schema(table_name: str) -> dict[str, Any]:
     Returns:
         Dict with CREATE TABLE SQL and sample data.
     """
+    from va_agent.data.lineage_registry import LINEAGE
+
+    # Validate table_name against known tables to prevent SQL injection
+    allowed = set(LINEAGE.keys()) | {"seed_manifest"}
+    if table_name not in allowed:
+        return {
+            "error": (
+                f"Unknown table '{table_name}'. "
+                f"Available: {', '.join(sorted(LINEAGE.keys()))}"
+            )
+        }
+
     exe = _get_executor()
 
     # Get CREATE TABLE statement

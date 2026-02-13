@@ -195,9 +195,14 @@ class SQLExecutor:
         """Get column info for a table using PRAGMA-style query.
 
         Note: We use a SELECT on sqlite_master + parse, since PRAGMA is blocked.
+        The table_name is validated to contain only safe identifier characters.
         """
+        import re
+
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", table_name):
+            return []
         result = self.execute(
-            f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}'"  # noqa: S608
+            f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}'"
         )
         if result.rows:
             return [{"create_sql": result.rows[0].get("sql", "")}]
@@ -222,3 +227,9 @@ class SQLExecutor:
         if self._conn:
             self._conn.close()
             self._conn = None
+
+    def __enter__(self) -> SQLExecutor:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # noqa: ANN001
+        self.close()

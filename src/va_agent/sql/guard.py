@@ -36,7 +36,9 @@ _BLACKLIST_PATTERNS = [
     re.compile(r"\bRELEASE\b", re.IGNORECASE),
     re.compile(r"\bVACUUM\b", re.IGNORECASE),
     re.compile(r"\bREINDEX\b", re.IGNORECASE),
-    re.compile(r"\bANALYZE\b", re.IGNORECASE),
+    # ANALYZE omitted: the SELECT/WITH prefix check (line 87) already prevents
+    # standalone ANALYZE statements, and the keyword appears legitimately in
+    # column/alias names (e.g. SELECT analyze_result FROM ...).
 ]
 
 
@@ -102,11 +104,6 @@ def validate_query(sql: str) -> str:
 
             # REPLACE is OK inside function calls like REPLACE(col, 'a', 'b')
             if keyword == "REPLACE" and re.search(r"\bREPLACE\s*\(", body, re.IGNORECASE):
-                continue
-
-            # ANALYZE is OK if it's part of a column/table name
-            # but not as a standalone statement keyword
-            if keyword == "ANALYZE" and not upper.startswith("ANALYZE"):
                 continue
 
             raise SQLGuardError(

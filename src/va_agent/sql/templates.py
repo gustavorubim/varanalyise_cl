@@ -1,13 +1,22 @@
 """Parameterized SQL templates for common variance analysis patterns.
 
 Each template is a function that returns a SQL string. Parameters are
-validated and safely interpolated (all are column/table names from the
-known schema, not user input).
+validated against known patterns before interpolation to prevent SQL
+injection from LLM-generated values.
 """
 
 from __future__ import annotations
 
+import re
+from typing import Callable
+
 from va_agent.data.lineage_registry import LINEAGE
+
+# Pattern for period values: YYYY-MM format
+_PERIOD_RE = re.compile(r"^\d{4}-\d{2}$")
+
+# Pattern for simple identifiers (account codes, cost centers, departments, currencies)
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 
 def _validate_table(table: str) -> str:
@@ -17,11 +26,29 @@ def _validate_table(table: str) -> str:
     return table
 
 
+def _validate_period(period: str) -> str:
+    """Validate period matches YYYY-MM format."""
+    if not _PERIOD_RE.match(period):
+        raise ValueError(f"Invalid period format: {period!r} (expected YYYY-MM)")
+    return period
+
+
+def _validate_identifier(value: str, param_name: str) -> str:
+    """Validate a simple identifier (no SQL-special characters)."""
+    if not _IDENTIFIER_RE.match(value):
+        raise ValueError(
+            f"Invalid {param_name}: {value!r} (only alphanumeric, hyphens, underscores allowed)"
+        )
+    return value
+
+
 # ── Templates ─────────────────────────────────────────────────────────────────
 
 
 def variance_summary(period: str | None = None) -> str:
     """P&L variance summary by department and account type."""
+    if period:
+        _validate_period(period)
     where = f"WHERE period = '{period}'" if period else ""
     return f"""
 SELECT
@@ -41,6 +68,9 @@ ORDER BY ABS(SUM(variance_usd)) DESC
 
 def account_detail(account_code: str, period: str | None = None) -> str:
     """Detailed actuals for a specific account code."""
+    _validate_identifier(account_code, "account_code")
+    if period:
+        _validate_period(period)
     where_parts = [f"a.account_code = '{account_code}'"]
     if period:
         where_parts.append(f"a.period = '{period}'")
@@ -64,6 +94,8 @@ ORDER BY a.period, a.cost_center
 
 def fx_rate_history(currency: str | None = None) -> str:
     """FX rate history, optionally filtered by currency."""
+    if currency:
+        _validate_identifier(currency, "currency")
     where = f"WHERE currency = '{currency}'" if currency else ""
     return f"""
 SELECT
@@ -84,6 +116,9 @@ ORDER BY currency, period
 
 def cost_center_drill(cost_center: str, period: str | None = None) -> str:
     """Drill into a specific cost center's entries."""
+    _validate_identifier(cost_center, "cost_center")
+    if period:
+        _validate_period(period)
     where_parts = [f"r.cost_center = '{cost_center}'"]
     if period:
         where_parts.append(f"r.period = '{period}'")
@@ -106,6 +141,8 @@ ORDER BY r.period, r.account_code
 
 def budget_vs_actual(department: str | None = None) -> str:
     """Budget vs actual comparison by department."""
+    if department:
+        _validate_identifier(department, "department")
     where = f"WHERE department = '{department}'" if department else ""
     return f"""
 SELECT
@@ -185,7 +222,7 @@ ORDER BY entry_count DESC
 
 
 # Registry of all templates
-TEMPLATES: dict[str, callable] = {
+TEMPLATES: dict[str, Callable[..., str]] = {
     "variance_summary": variance_summary,
     "account_detail": account_detail,
     "fx_rate_history": fx_rate_history,

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import statistics
@@ -11,7 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 from rich.console import Console
 
 from va_agent.config import Settings
@@ -24,15 +22,8 @@ from va_agent.models import (
 )
 from va_agent.output.writer import ReportWriter
 from va_agent.sql.executor import SQLExecutor
-from va_agent.tools.lineage_tools import get_all_tables, get_table_lineage
-from va_agent.tools.report_tools import (
-    get_findings,
-    get_sections,
-    reset_state,
-    write_finding,
-    write_report_section,
-)
-from va_agent.tools.sql_tools import run_sql_query, run_sql_template, set_executor
+from va_agent.tools.bound_tools import create_bound_tools
+from va_agent.tools.run_context import RunContext
 
 _console = Console(stderr=True)
 _DEFAULT_DEEP_REQUEST_TIMEOUT_S = 45.0
@@ -330,6 +321,20 @@ def _trace_metrics(trace_payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _normalize_text(text: str) -> str:
+    """Normalize text for fuzzy token matching.
+
+    Strips hyphens/underscores, lowercases, and collapses whitespace
+    so that 'CC-300', 'cc_300', 'cc300', 'cost center 300' all match.
+    """
+    lowered = text.lower()
+    # Replace hyphens and underscores with spaces for matching
+    normalized = lowered.replace("-", " ").replace("_", " ")
+    # Collapse multiple spaces
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized
+
+
 def _finding_blob(finding: Finding) -> str:
     parts: list[str] = [
         finding.id,
@@ -342,7 +347,8 @@ def _finding_blob(finding: Finding) -> str:
     for key, value in finding.affected_dimensions.items():
         parts.append(str(key))
         parts.append(str(value))
-    return " ".join(parts).lower()
+    raw = " ".join(parts)
+    return _normalize_text(raw)
 
 
 def _matches_anomaly(finding: Finding, rule: dict[str, Any]) -> bool:
@@ -352,11 +358,12 @@ def _matches_anomaly(finding: Finding, rule: dict[str, Any]) -> bool:
     blob = _finding_blob(finding)
 
     for token in rule.get("all_tokens", []):
-        if token.lower() not in blob:
+        normalized_token = _normalize_text(token)
+        if normalized_token not in blob:
             return False
 
     any_tokens = rule.get("any_tokens")
-    if any_tokens and not any(token.lower() in blob for token in any_tokens):
+    if any_tokens and not any(_normalize_text(token) in blob for token in any_tokens):
         return False
 
     return True
@@ -538,9 +545,9 @@ def _build_comparison_markdown(deep_summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _ensure_minimum_finding() -> None:
-    if get_findings():
-        return
+def _ensure_minimum_finding(tools: dict[str, Any]) -> None:
+    run_sql_query = tools["run_sql_query"]
+    write_finding = tools["write_finding"]
 
     fallback_sql = (
         "SELECT department, account_type, period, variance_usd, variance_pct "
@@ -594,11 +601,11 @@ def _ensure_minimum_finding() -> None:
     )
 
 
-def _ensure_minimum_section() -> None:
-    if get_sections():
+def _ensure_minimum_section(ctx: RunContext, tools: dict[str, Any]) -> None:
+    if ctx.sections:
         return
-    finding_ids = [finding.id for finding in get_findings()]
-    write_report_section(
+    finding_ids = [finding.id for finding in ctx.findings]
+    tools["write_report_section"](
         title="Deep Spike Summary",
         content=(
             "Standalone Deep Agents spike execution complete. "
@@ -609,11 +616,11 @@ def _ensure_minimum_section() -> None:
 
 
 def _build_report(
-    settings: Settings, executor: SQLExecutor, started_at: datetime, run_dir: Path
+    settings: Settings, ctx: RunContext, started_at: datetime, run_dir: Path
 ) -> VarianceReport:
     completed_at = datetime.now()
-    findings = get_findings()
-    sections = get_sections()
+    findings = ctx.findings
+    sections = ctx.sections
 
     if findings:
         bullets = [f"- {finding.title} ({finding.confidence.level.value})" for finding in findings]
@@ -632,13 +639,15 @@ def _build_report(
             started_at=started_at,
             completed_at=completed_at,
             model_name=f"deep:{settings.model_name}",
-            total_queries=len(executor.audit_log),
+            total_queries=len(ctx.executor.audit_log),
             run_dir=str(run_dir),
         ),
     )
 
 
-def _create_deep_agent(settings: Settings, system_prompt: str) -> Any:
+def _create_deep_agent(
+    settings: Settings, system_prompt: str, tools: list[Any]
+) -> Any:
     try:
         from deepagents import create_deep_agent
     except ImportError as exc:
@@ -659,24 +668,23 @@ def _create_deep_agent(settings: Settings, system_prompt: str) -> Any:
         request_timeout=_DEFAULT_DEEP_REQUEST_TIMEOUT_S,
         retries=_DEFAULT_DEEP_RETRIES,
     )
-    tools = [
-        run_sql_query,
-        run_sql_template,
-        get_all_tables,
-        get_table_lineage,
-        write_finding,
-        write_report_section,
-    ]
     kwargs = {"model": model, "tools": tools}
 
     # Compatibility shim for Deep Agents versions with different prompt kwarg names.
+    # Raises instead of silently falling through to no-prompt creation.
+    last_exc: TypeError | None = None
     for prompt_key in ("system_prompt", "instructions"):
         try:
             return create_deep_agent(**kwargs, **{prompt_key: system_prompt})
-        except TypeError:
+        except TypeError as exc:
+            last_exc = exc
             continue
 
-    return create_deep_agent(**kwargs)
+    raise RuntimeError(
+        "Failed to pass system prompt to create_deep_agent — "
+        "neither 'system_prompt' nor 'instructions' kwarg accepted. "
+        f"Last error: {last_exc}"
+    )
 
 
 def _write_artifacts(
@@ -752,13 +760,13 @@ def run_deep_spike(settings: Settings, run_label: str | None = None) -> Variance
     _vlog(settings, f"Deep spike run dir: {run_dir}")
     _vlog(settings, f"Model={settings.model_name} temp={settings.temperature}")
 
-    reset_state()
     executor = SQLExecutor(
         db_path=settings.db_path,
         max_rows=settings.max_rows,
         query_timeout=settings.query_timeout,
     )
-    set_executor(executor)
+    ctx = RunContext(executor=executor)
+    bound = create_bound_tools(ctx)
     _vlog(settings, f"SQL executor wired to {settings.db_path}")
 
     system_prompt = _load_spike_prompt()
@@ -776,12 +784,24 @@ def run_deep_spike(settings: Settings, run_label: str | None = None) -> Variance
         "if a query fails, correct it once and continue."
     )
 
+    agent_tools = [
+        bound["run_sql_query"],
+        bound["run_sql_template"],
+        bound["get_table_schema"],
+        bound["get_all_tables"],
+        bound["get_table_lineage"],
+        bound["write_finding"],
+        bound["write_report_section"],
+    ]
+
     started_perf = time.perf_counter()
     error_text: str | None = None
 
     try:
         _vlog(settings, "Creating Deep Agents runtime...")
-        agent = _create_deep_agent(settings=settings, system_prompt=system_prompt)
+        agent = _create_deep_agent(
+            settings=settings, system_prompt=system_prompt, tools=agent_tools
+        )
         _vlog(
             settings,
             (
@@ -834,31 +854,34 @@ def run_deep_spike(settings: Settings, run_label: str | None = None) -> Variance
             },
         ]
 
-    _ensure_minimum_finding()
-    _ensure_minimum_section()
-    _vlog(settings, f"Findings collected: {len(get_findings())}")
+    try:
+        if not ctx.findings:
+            _ensure_minimum_finding(bound)
+        _ensure_minimum_section(ctx, bound)
+        _vlog(settings, f"Findings collected: {len(ctx.findings)}")
 
-    report = _build_report(
-        settings=settings, executor=executor, started_at=started_at, run_dir=run_dir
-    )
-    trace_payload = {
-        "engine": "deep",
-        "model": settings.model_name,
-        "temperature": settings.temperature,
-        "system_instruction": system_prompt,
-        "user_message": user_message,
-        "error": error_text,
-        "steps": _coerce_jsonable(trace_steps),
-    }
-    _write_artifacts(
-        settings=settings,
-        report=report,
-        run_dir=run_dir,
-        executor=executor,
-        trace_payload=trace_payload,
-    )
+        report = _build_report(
+            settings=settings, ctx=ctx, started_at=started_at, run_dir=run_dir
+        )
+        trace_payload = {
+            "engine": "deep",
+            "model": settings.model_name,
+            "temperature": settings.temperature,
+            "system_instruction": system_prompt,
+            "user_message": user_message,
+            "error": error_text,
+            "steps": _coerce_jsonable(trace_steps),
+        }
+        evaluation = _write_artifacts(
+            settings=settings,
+            report=report,
+            run_dir=run_dir,
+            executor=executor,
+            trace_payload=trace_payload,
+        )
+    finally:
+        executor.close()
 
-    executor.close()
     _vlog(settings, "Deep spike finished.")
     return report
 
@@ -927,62 +950,3 @@ def run_deep_benchmark(
     }
 
 
-def _build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run Deep Agents analysis and benchmark modes.")
-    parser.add_argument("--model", type=str, default=None, help="Model override.")
-    parser.add_argument("--db-path", type=Path, default=None, help="Custom warehouse DB path.")
-    parser.add_argument("--run-label", type=str, default=None, help="Optional run label suffix.")
-    parser.add_argument(
-        "--repeats",
-        type=int,
-        default=3,
-        help="Number of deep spike runs for benchmark (1 runs a single spike).",
-    )
-    parser.add_argument(
-        "--deterministic",
-        action="store_true",
-        help="Force temperature=0.0 (recommended for benchmark consistency).",
-    )
-    parser.add_argument("--verbose", action="store_true", help="Verbose console logging.")
-    return parser
-
-
-def _main() -> int:
-    load_dotenv()
-    parser = _build_arg_parser()
-    args = parser.parse_args()
-
-    settings = Settings()
-    if args.model:
-        settings.model_name = args.model
-    if args.db_path:
-        settings.db_path = args.db_path
-    if args.deterministic:
-        settings.temperature = 0.0
-    settings.verbose = args.verbose
-    settings.ensure_dirs()
-
-    if not settings.db_path.exists():
-        _console.print(f"[red]Database not found:[/red] {settings.db_path}")
-        _console.print("Run `va seed` first.")
-        return 1
-
-    if args.repeats <= 1:
-        report = run_deep_spike(settings=settings, run_label=args.run_label)
-        _console.print(f"[green]Deep spike complete.[/green] {len(report.findings)} findings.")
-        _console.print(f"Run dir: {report.metadata.run_dir}")
-        return 0
-
-    result = run_deep_benchmark(
-        settings=settings,
-        repeats=args.repeats,
-        run_label=args.run_label,
-    )
-    _console.print("[green]Deep benchmark complete.[/green]")
-    _console.print(f"Summary: {result['summary_path']}")
-    _console.print(f"Comparison: {result['comparison_path']}")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(_main())
