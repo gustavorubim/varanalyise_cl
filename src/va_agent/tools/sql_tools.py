@@ -109,8 +109,7 @@ def run_sql_template(
     """
     if template_name not in TEMPLATES:
         return {
-            "error": f"Unknown template '{template_name}'. "
-            f"Available: {', '.join(TEMPLATES.keys())}"
+            "error": f"Unknown template '{template_name}'. Available: {', '.join(TEMPLATES.keys())}"
         }
 
     try:

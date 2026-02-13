@@ -70,18 +70,14 @@ def validate_query(sql: str) -> str:
     if len(non_empty) == 0:
         raise SQLGuardError("No valid SQL statement found")
     if len(non_empty) > 1:
-        raise SQLGuardError(
-            "Multiple statements detected — only single SELECT queries are allowed"
-        )
+        raise SQLGuardError("Multiple statements detected — only single SELECT queries are allowed")
 
     stmt = non_empty[0]
     stmt_type = stmt.get_type()
 
     # Check: must be SELECT (or None for complex CTEs — we check prefix below)
     if stmt_type and stmt_type.upper() != "SELECT":
-        raise SQLGuardError(
-            f"Statement type '{stmt_type}' not allowed — only SELECT is permitted"
-        )
+        raise SQLGuardError(f"Statement type '{stmt_type}' not allowed — only SELECT is permitted")
 
     # Normalize and check prefix
     normalized = str(stmt).strip()
@@ -89,10 +85,7 @@ def validate_query(sql: str) -> str:
 
     # Must start with SELECT or WITH (for CTEs)
     if not (upper.startswith("SELECT") or upper.startswith("WITH")):
-        raise SQLGuardError(
-            "Query must start with SELECT or WITH (CTE) — "
-            f"found: {upper[:30]}..."
-        )
+        raise SQLGuardError(f"Query must start with SELECT or WITH (CTE) — found: {upper[:30]}...")
 
     # Check: no semicolons in the middle (multi-statement injection)
     # Allow trailing semicolon only
@@ -108,9 +101,7 @@ def validate_query(sql: str) -> str:
             keyword = match.group(0).upper()
 
             # REPLACE is OK inside function calls like REPLACE(col, 'a', 'b')
-            if keyword == "REPLACE" and re.search(
-                r"\bREPLACE\s*\(", body, re.IGNORECASE
-            ):
+            if keyword == "REPLACE" and re.search(r"\bREPLACE\s*\(", body, re.IGNORECASE):
                 continue
 
             # ANALYZE is OK if it's part of a column/table name
@@ -119,8 +110,7 @@ def validate_query(sql: str) -> str:
                 continue
 
             raise SQLGuardError(
-                f"Blocked keyword '{keyword}' detected — "
-                "only read-only SELECT queries are allowed"
+                f"Blocked keyword '{keyword}' detected — only read-only SELECT queries are allowed"
             )
 
     return normalized

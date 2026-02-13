@@ -1,7 +1,5 @@
 """Unit tests for confidence scoring."""
 
-import pytest
-
 from va_agent.analysis.confidence import (
     HIGH_THRESHOLD,
     MEDIUM_THRESHOLD,

@@ -97,15 +97,13 @@ class ReportWriter:
         # findings.json
         findings_path = run_dir / "findings.json"
         findings_data = [f.model_dump() for f in report.findings]
-        findings_path.write_text(
-            json.dumps(findings_data, indent=2, default=str), encoding="utf-8"
-        )
+        findings_path.write_text(json.dumps(findings_data, indent=2, default=str), encoding="utf-8")
         artifacts["findings.json"] = findings_path
 
         # executed_queries.sql
         sql_path = run_dir / "executed_queries.sql"
         queries = [
-            f"-- Query #{i+1} ({entry.get('execution_time_ms', 0):.0f}ms, "
+            f"-- Query #{i + 1} ({entry.get('execution_time_ms', 0):.0f}ms, "
             f"{entry.get('row_count', 0)} rows)\n{entry.get('sql', '')}\n"
             for i, entry in enumerate(audit_log)
         ]
@@ -121,9 +119,7 @@ class ReportWriter:
             "queries_count": len(audit_log),
             "audit_log": audit_log,
         }
-        log_path.write_text(
-            json.dumps(log_data, indent=2, default=str), encoding="utf-8"
-        )
+        log_path.write_text(json.dumps(log_data, indent=2, default=str), encoding="utf-8")
         artifacts["run_log.json"] = log_path
 
         return artifacts

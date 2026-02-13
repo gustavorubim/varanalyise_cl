@@ -6,7 +6,6 @@ These tests require the database to be seeded. Run with:
 
 import pytest
 
-from va_agent.sql.executor import SQLExecutor
 from va_agent.sql.templates import TEMPLATES
 
 

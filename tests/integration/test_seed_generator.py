@@ -30,9 +30,7 @@ class TestSeedPipeline:
     def test_all_tables_exist(self, seeded_db):
         db_path, _, _ = seeded_db
         conn = sqlite3.connect(str(db_path))
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         tables = {row[0] for row in cursor.fetchall()}
         conn.close()
 
@@ -123,9 +121,7 @@ class TestSeedPipeline:
         conn = sqlite3.connect(str(db_path))
 
         # Verify manifest documents the anomaly
-        cursor = conn.execute(
-            "SELECT description FROM seed_manifest WHERE anomaly_id = 'A-001'"
-        )
+        cursor = conn.execute("SELECT description FROM seed_manifest WHERE anomaly_id = 'A-001'")
         row = cursor.fetchone()
         assert row is not None
         assert "COGS" in row[0] and "CC-300" in row[0]

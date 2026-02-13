@@ -188,9 +188,7 @@ class SQLExecutor:
 
     def get_table_names(self) -> list[str]:
         """Get all table names from the database."""
-        result = self.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
+        result = self.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
         return [row["name"] for row in result.rows]
 
     def get_table_schema(self, table_name: str) -> list[dict]:

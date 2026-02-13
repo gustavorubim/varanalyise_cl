@@ -1,8 +1,6 @@
 """Unit tests for variance decomposition and Pareto analysis."""
 
-import pytest
-
-from va_agent.analysis.decomposition import DecompositionResult, decompose_variance
+from va_agent.analysis.decomposition import decompose_variance
 
 
 class TestDecomposeVariance:
@@ -79,9 +77,7 @@ class TestDecomposeVariance:
         rows = [
             {"region": "US", "diff": 5000, "base": 100000},
         ]
-        result = decompose_variance(
-            rows, "region", variance_col="diff", baseline_col="base"
-        )
+        result = decompose_variance(rows, "region", variance_col="diff", baseline_col="base")
         assert result.drivers[0].value == "US"
         assert result.drivers[0].variance_amount == 5000.0
 

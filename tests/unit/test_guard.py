@@ -72,8 +72,7 @@ class TestValidSelectQueries:
 
     def test_select_with_case(self):
         result = validate_query(
-            "SELECT CASE WHEN variance_pct > 10 THEN 'HIGH' ELSE 'LOW' END "
-            "FROM mart_pnl_report"
+            "SELECT CASE WHEN variance_pct > 10 THEN 'HIGH' ELSE 'LOW' END FROM mart_pnl_report"
         )
         assert "CASE" in result
 

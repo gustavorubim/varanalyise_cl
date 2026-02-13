@@ -40,9 +40,7 @@ def get_table_lineage(table_name: str) -> dict[str, Any]:
         "description": meta.description,
         "grain": meta.grain,
         "direct_upstream": meta.upstream,
-        "direct_downstream": [
-            name for name, m in LINEAGE.items() if table_name in m.upstream
-        ],
+        "direct_downstream": [name for name, m in LINEAGE.items() if table_name in m.upstream],
         "full_upstream_chain": get_upstream_chain(table_name),
         "full_downstream_chain": get_downstream_chain(table_name),
         "key_columns": meta.key_columns,
@@ -68,9 +66,7 @@ def get_all_tables() -> dict[str, Any]:
                 "description": meta.description,
                 "grain": meta.grain,
                 "upstream": meta.upstream,
-                "downstream": [
-                    n for n, m in LINEAGE.items() if name in m.upstream
-                ],
+                "downstream": [n for n, m in LINEAGE.items() if name in m.upstream],
                 "key_columns": meta.key_columns,
                 "measure_columns": meta.measure_columns,
                 "transformations": meta.transformations,

@@ -2,7 +2,6 @@
 
 import pytest
 
-from va_agent.sql.executor import SQLExecutor
 from va_agent.tools import sql_tools
 from va_agent.tools.lineage_tools import get_all_tables, get_table_lineage
 from va_agent.tools.report_tools import (

@@ -11,18 +11,14 @@ import argparse
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+from rich.console import Console
+
 # Resolve repository root and ensure local package imports work without install.
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = REPO_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
-
-from dotenv import load_dotenv
-from rich.console import Console
-
-from va_agent.config import Settings
-from va_agent.data.seed_generator import seed_database
-from va_agent.graph.deep_engine import run_deep_benchmark, run_deep_spike
 
 console = Console()
 
@@ -65,6 +61,11 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    # Import after path setup so this script works without package installation.
+    from va_agent.config import Settings
+    from va_agent.data.seed_generator import seed_database
+    from va_agent.graph.deep_engine import run_deep_benchmark, run_deep_spike
+
     load_dotenv(REPO_ROOT / ".env")
     parser = _build_parser()
     args = parser.parse_args()

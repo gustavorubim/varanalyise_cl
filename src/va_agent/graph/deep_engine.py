@@ -529,9 +529,7 @@ def _build_comparison_markdown(deep_summary: dict[str, Any]) -> str:
         [
             "## Recommendation Inputs",
             "",
-            (
-                "- Tune prompt/tool limits if anomaly recall is low or if tool error rate is high."
-            ),
+            ("- Tune prompt/tool limits if anomaly recall is low or if tool error rate is high."),
             "- Track recall and precision proxy across repeated runs before changing defaults.",
             "- Investigate unmatched anomalies in `evaluation.json` and `trace.json`.",
             "",
@@ -746,9 +744,7 @@ def _write_artifacts(
 def run_deep_spike(settings: Settings, run_label: str | None = None) -> VarianceReport:
     """Run one standalone Deep Agents spike and write artifacts."""
     if not settings.db_path.exists():
-        raise FileNotFoundError(
-            f"Database not found at {settings.db_path}. Run `va seed` first."
-        )
+        raise FileNotFoundError(f"Database not found at {settings.db_path}. Run `va seed` first.")
 
     settings.ensure_dirs()
     run_dir = _make_run_dir(settings, run_label)
@@ -842,7 +838,9 @@ def run_deep_spike(settings: Settings, run_label: str | None = None) -> Variance
     _ensure_minimum_section()
     _vlog(settings, f"Findings collected: {len(get_findings())}")
 
-    report = _build_report(settings=settings, executor=executor, started_at=started_at, run_dir=run_dir)
+    report = _build_report(
+        settings=settings, executor=executor, started_at=started_at, run_dir=run_dir
+    )
     trace_payload = {
         "engine": "deep",
         "model": settings.model_name,

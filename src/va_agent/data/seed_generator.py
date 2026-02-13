@@ -9,7 +9,6 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -174,9 +173,7 @@ def _build_fx_rates(rng: np.random.Generator) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _build_actuals_usd(
-    actuals: pd.DataFrame, fx_rates: pd.DataFrame
-) -> pd.DataFrame:
+def _build_actuals_usd(actuals: pd.DataFrame, fx_rates: pd.DataFrame) -> pd.DataFrame:
     """Convert actuals to USD using FX rates."""
     merged = actuals.merge(fx_rates, on=["currency", "period"], how="left")
     merged["amount_usd"] = (merged["amount_local"] * merged["rate_to_usd"]).round(2)
@@ -279,26 +276,20 @@ def _inject_anomalies(
             "category": "REVENUE_ANOMALY",
             "description": "Revenue drop: zeroed revenue for Sales department in 2024-06",
             "affected_tables": "raw_ledger_entries,fct_actuals_monthly,int_actuals_usd,mart_pnl_report",
-            "affected_dimensions": json.dumps(
-                {"department": "Sales", "periods": ["2024-06"]}
-            ),
+            "affected_dimensions": json.dumps({"department": "Sales", "periods": ["2024-06"]}),
         }
     )
 
     # Anomaly 3: FX anomaly — EUR/USD rate 15% off trend for 2024-07
     fx_mask = fx_rates["currency"].eq("EUR") & fx_rates["period"].eq("2024-07")
-    fx_rates.loc[fx_mask, "rate_to_usd"] = (
-        fx_rates.loc[fx_mask, "rate_to_usd"] * 1.15
-    ).round(6)
+    fx_rates.loc[fx_mask, "rate_to_usd"] = (fx_rates.loc[fx_mask, "rate_to_usd"] * 1.15).round(6)
     manifest.append(
         {
             "anomaly_id": "A-003",
             "category": "FX_ANOMALY",
             "description": "FX anomaly: EUR/USD rate 15% above trend in 2024-07",
             "affected_tables": "fct_fx_rates,int_actuals_usd,mart_pnl_report",
-            "affected_dimensions": json.dumps(
-                {"currency": "EUR", "periods": ["2024-07"]}
-            ),
+            "affected_dimensions": json.dumps({"currency": "EUR", "periods": ["2024-07"]}),
         }
     )
 
@@ -306,9 +297,9 @@ def _inject_anomalies(
     budget_mask = budget["department"].eq("Finance") & budget["period"].isin(
         ["2024-07", "2024-08", "2024-09"]
     )
-    budget.loc[budget_mask, "budget_amount"] = (
-        budget.loc[budget_mask, "budget_amount"] * 2
-    ).round(2)
+    budget.loc[budget_mask, "budget_amount"] = (budget.loc[budget_mask, "budget_amount"] * 2).round(
+        2
+    )
     manifest.append(
         {
             "anomaly_id": "A-004",
@@ -360,9 +351,7 @@ def seed_database(settings: Settings, force: bool = False) -> Path:
     db_path = settings.db_path
 
     if db_path.exists() and not force:
-        raise FileExistsError(
-            f"Database already exists at {db_path}. Use --force to overwrite."
-        )
+        raise FileExistsError(f"Database already exists at {db_path}. Use --force to overwrite.")
 
     rng = np.random.default_rng(seed=42)  # deterministic
 

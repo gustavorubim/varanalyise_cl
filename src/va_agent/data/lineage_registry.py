@@ -45,7 +45,9 @@ LINEAGE: dict[str, TableMeta] = {
         upstream=["raw_ledger_entries"],
         key_columns=["account_code"],
         measure_columns=[],
-        transformations=["SELECT DISTINCT account_code, account_type, account_name FROM raw_ledger_entries"],
+        transformations=[
+            "SELECT DISTINCT account_code, account_type, account_name FROM raw_ledger_entries"
+        ],
     ),
     "stg_cost_center_mapping": TableMeta(
         name="stg_cost_center_mapping",

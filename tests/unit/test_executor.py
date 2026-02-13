@@ -1,7 +1,5 @@
 """Unit tests for the SQL executor."""
 
-import pytest
-
 from va_agent.sql.executor import SQLExecutor
 
 

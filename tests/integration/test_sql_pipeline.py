@@ -1,10 +1,5 @@
 """Integration tests for the guard → executor → connection pipeline."""
 
-import pytest
-
-from va_agent.sql.executor import SQLExecutor
-from va_agent.sql.guard import SQLGuardError
-
 
 class TestFullSQLPipeline:
     """End-to-end tests through all 4 layers."""

@@ -11,11 +11,10 @@ import typer
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
+from va_agent.config import Settings
 
 # Load .env early so GOOGLE_API_KEY is available to model clients
 load_dotenv()
-
-from va_agent.config import Settings
 
 app = typer.Typer(
     name="va",
@@ -42,9 +41,7 @@ def _acquire_analysis_lock(lock_path: Path) -> None:
             pass
 
         hint = f" Existing lock details: {details}" if details else ""
-        raise RuntimeError(
-            f"Another analysis is already running (lock: {lock_path}).{hint}"
-        ) from e
+        raise RuntimeError(f"Another analysis is already running (lock: {lock_path}).{hint}") from e
 
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(json.dumps(payload))
@@ -120,9 +117,7 @@ def analyze(
     settings.ensure_dirs()
 
     if not settings.db_path.exists():
-        console.print(
-            "[red]Error:[/red] Database not found. Run [cyan]va seed[/cyan] first."
-        )
+        console.print("[red]Error:[/red] Database not found. Run [cyan]va seed[/cyan] first.")
         raise typer.Exit(code=1)
 
     lock_path = settings.runs_dir / ".analysis.lock"
@@ -190,8 +185,8 @@ def audit(
         table.add_row(
             str(i),
             f"{entry.get('execution_time_ms', 0):.0f}",
-            str(entry.get('row_count', 0)),
-            entry.get('sql', '')[:80],
+            str(entry.get("row_count", 0)),
+            entry.get("sql", "")[:80],
         )
 
     console.print(table)
